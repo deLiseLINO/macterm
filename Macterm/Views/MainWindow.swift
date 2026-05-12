@@ -258,6 +258,12 @@ private struct WindowStyler: NSViewRepresentable {
         }
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
+            // During app termination AppKit asks every window if it can close.
+            // The "hide instead of close" trick is only for the user clicking
+            // the red close button while the app keeps running — when we're
+            // shutting down, let the window actually close so the process can
+            // exit instead of leaving an invisible window holding the app open.
+            if AppTerminationState.isTerminating { return true }
             sender.orderOut(nil)
             return false
         }

@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onTerminate?()
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
         let mainHasRunning =
             appState?.workspaces.values.contains { ws in
                 ws.tabs.contains { tab in
@@ -131,7 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let qtHasRunning = QuickTerminalService.shared.splitState.splitRoot
             .allPanes().contains { $0.nsView?.needsConfirmQuit() == true }
         let hasRunning = mainHasRunning || qtHasRunning
-        guard hasRunning else { return .terminateNow }
+
+        if !hasRunning {
+            AppTerminationState.isTerminating = true
+            return .terminateNow
+        }
 
         let alert = NSAlert()
         alert.messageText = "Quit Macterm?"
@@ -140,7 +144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.icon = NSApp.applicationIconImage
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        if alert.runModal() == .alertFirstButtonReturn {
+            AppTerminationState.isTerminating = true
+            return .terminateNow
+        }
+        return .terminateCancel
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
