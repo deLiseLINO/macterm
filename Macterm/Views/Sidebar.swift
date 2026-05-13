@@ -197,7 +197,7 @@ private struct SidebarTabRow: View {
     @State
     private var renameText = ""
     @State
-    private var preEditCustomTitle: String? = nil
+    private var preEditCustomTitle: String?
     @FocusState
     private var focused: Bool
 
