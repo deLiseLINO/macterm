@@ -253,7 +253,7 @@ private struct WindowStyler: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.titlebarSeparatorStyle = .none
             window.tabbingMode = .disallowed
-            applyStyle(to: window)
+            WindowAppearance.sync(window: window)
             context.coordinator.observe(window: window)
             // Intercept the close button to hide instead of close,
             // preserving terminal surfaces and running processes.
@@ -264,17 +264,15 @@ private struct WindowStyler: NSViewRepresentable {
 
     func updateNSView(_: NSView, context _: Context) {}
 
-    private func applyStyle(to window: NSWindow) {
-        window.isOpaque = true
-        window.backgroundColor = MactermTheme.nsBg
-    }
-
     final class Coordinator: NSObject, NSWindowDelegate {
         nonisolated(unsafe) private var observer: Any?
         weak var swiftuiDelegate: (any NSWindowDelegate)?
 
         @MainActor
         func observe(window: NSWindow) {
+            // Re-apply on config change. AppKit also rebuilds the titlebar
+            // subviews on becomeMain / fullscreen transitions, so we resync
+            // there too via the delegate hooks below.
             observer = NotificationCenter.default.addObserver(
                 forName: .mactermConfigDidChange,
                 object: nil,
@@ -282,10 +280,27 @@ private struct WindowStyler: NSViewRepresentable {
             ) { [weak window] _ in
                 guard let window else { return }
                 MainActor.assumeIsolated {
-                    window.isOpaque = true
-                    window.backgroundColor = MactermTheme.nsBg
+                    WindowAppearance.sync(window: window)
                 }
             }
+        }
+
+        func windowDidBecomeMain(_ notification: Notification) {
+            guard let window = notification.object as? NSWindow else { return }
+            WindowAppearance.sync(window: window)
+            swiftuiDelegate?.windowDidBecomeMain?(notification)
+        }
+
+        func windowDidEnterFullScreen(_ notification: Notification) {
+            guard let window = notification.object as? NSWindow else { return }
+            WindowAppearance.sync(window: window)
+            swiftuiDelegate?.windowDidEnterFullScreen?(notification)
+        }
+
+        func windowDidExitFullScreen(_ notification: Notification) {
+            guard let window = notification.object as? NSWindow else { return }
+            WindowAppearance.sync(window: window)
+            swiftuiDelegate?.windowDidExitFullScreen?(notification)
         }
 
         @MainActor

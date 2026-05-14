@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import GhosttyKit
 import SwiftUI
 
 @MainActor
@@ -162,6 +163,9 @@ final class QuickTerminalService: NSObject {
             previousFrontmostApp = frontmost
         }
         panel.makeKeyAndOrderFront(nil)
+        if GhosttyApp.shared.backgroundBlurEnabled, let app = GhosttyApp.shared.app {
+            ghostty_set_window_background_blur(app, Unmanaged.passUnretained(panel).toOpaque())
+        }
         if let focusedID = splitState.focusedPaneID {
             FocusRestoration.restoreFocus(to: focusedID, in: splitState.splitRoot, window: panel)
         }
@@ -349,7 +353,7 @@ private struct QuickTerminalView: View {
             onToggleZoom: { state.tab.toggleZoom(paneID: $0) }
         )
         .id(renderedNode.id)
-        .background(Color(nsColor: GhosttyApp.shared.backgroundColor))
+        .background(MactermTheme.bgWithOpacity)
         .overlay(alignment: .topTrailing) {
             if let zoomID = state.tab.zoomedPaneID {
                 ZoomIndicator(onExit: { state.tab.toggleZoom(paneID: zoomID) })
