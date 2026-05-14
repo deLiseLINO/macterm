@@ -33,15 +33,9 @@ final class Updater: ObservableObject {
         // the production EdDSA key, so it pops an "Unable to Check For
         // Updates" dialog on every launch. Start the controller without
         // kicking off update checks; release builds still auto-check.
-        //
-        // To exercise scheduled-check behavior locally (e.g. validating the
-        // gentle-reminder code path), set MACTERM_DEBUG_UPDATER=1 in the
-        // environment when running. Expect a Sparkle EdDSA error popup on
-        // first check — close it; subsequent checks land on the same code
-        // path the production user-driver path uses.
         let startUpdater: Bool = {
             #if DEBUG
-            return ProcessInfo.processInfo.environment["MACTERM_DEBUG_UPDATER"] == "1"
+            return false
             #else
             return true
             #endif
@@ -56,13 +50,6 @@ final class Updater: ObservableObject {
         cancellable = controller.updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.canCheckForUpdates = $0 }
-        #if DEBUG
-        if startUpdater {
-            // 60s scheduled checks for local validation; release builds keep
-            // Sparkle's default daily cadence.
-            controller.updater.updateCheckInterval = 60
-        }
-        #endif
         // `didFindValidUpdate` only fires for *user-initiated* checks. Scheduled
         // background checks route through the user-driver delegate instead, so
         // we wire both paths to the same flag.
