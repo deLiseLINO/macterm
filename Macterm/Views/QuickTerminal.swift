@@ -1,6 +1,5 @@
 import AppKit
 import Carbon
-import GhosttyKit
 import SwiftUI
 
 @MainActor
@@ -54,7 +53,21 @@ final class QuickTerminalService: NSObject {
             name: UserDefaults.didChangeNotification,
             object: nil
         )
+        // Re-apply the blur radius when ghostty.conf changes so the visible
+        // panel picks up Settings adjustments without needing to be re-shown.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(reapplyBlur),
+            name: .mactermConfigDidChange,
+            object: nil
+        )
         if isEnabled { registerHotKey() }
+    }
+
+    @objc
+    private func reapplyBlur() {
+        guard let panel, isVisible else { return }
+        setWindowBackgroundBlur(panel, radius: Preferences.shared.windowBlurRadius)
     }
 
     @objc
@@ -163,9 +176,8 @@ final class QuickTerminalService: NSObject {
             previousFrontmostApp = frontmost
         }
         panel.makeKeyAndOrderFront(nil)
-        if GhosttyApp.shared.backgroundBlurEnabled, let app = GhosttyApp.shared.app {
-            ghostty_set_window_background_blur(app, Unmanaged.passUnretained(panel).toOpaque())
-        }
+        // Apply the current blur radius (0 = no blur) for this panel session.
+        setWindowBackgroundBlur(panel, radius: Preferences.shared.windowBlurRadius)
         if let focusedID = splitState.focusedPaneID {
             FocusRestoration.restoreFocus(to: focusedID, in: splitState.splitRoot, window: panel)
         }

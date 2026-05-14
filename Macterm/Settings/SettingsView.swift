@@ -39,15 +39,19 @@ private struct AppearanceSettings: View {
     @State
     private var themes: [ThemePreview] = []
     @State
-    private var currentTheme: String = ""
+    private var currentTheme: String = Preferences.shared.theme
     @State
-    private var currentFont: String = ""
+    private var currentFont: String = Preferences.shared.fontFamily
     @State
-    private var fontSize: Int = 12
+    private var fontSize: Int = Preferences.shared.fontSize
     @State
     private var monoFonts: [String] = []
     @AppStorage(Preferences.Keys.autoTiling)
     private var autoTilingEnabled = false
+    @State
+    private var backgroundOpacity: Double = Preferences.shared.windowOpacity
+    @State
+    private var backgroundBlurRadius: Double = .init(Preferences.shared.windowBlurRadius)
     var body: some View {
         Form {
             Section("Font") {
@@ -61,12 +65,7 @@ private struct AppearanceSettings: View {
                     }
                 }
                 .onChange(of: currentFont) { _, v in
-                    if v.isEmpty {
-                        MactermConfig.shared.removeValue("font-family")
-                    } else {
-                        MactermConfig.shared.updateValue("font-family", value: v)
-                    }
-                    GhosttyApp.shared.reloadConfig()
+                    Preferences.shared.fontFamily = v
                 }
 
                 Stepper(value: $fontSize, in: 8 ... 32) {
@@ -79,22 +78,18 @@ private struct AppearanceSettings: View {
                     }
                 }
                 .onChange(of: fontSize) { _, v in
-                    MactermConfig.shared.updateValue("font-size", value: "\(v)")
-                    GhosttyApp.shared.reloadConfig()
+                    Preferences.shared.fontSize = v
                 }
             }
 
             Section("Theme") {
                 Picker("Select Theme", selection: $currentTheme) {
-                    Text("Default").tag("")
-                    Divider()
                     ForEach(themes) { theme in
                         Text(theme.id).tag(theme.id)
                     }
                 }
                 .onChange(of: currentTheme) { _, v in
-                    MactermConfig.shared.updateValue("theme", value: "\"\(v)\"")
-                    GhosttyApp.shared.reloadConfig()
+                    Preferences.shared.theme = v
                 }
 
                 if let theme = themes.first(where: { $0.id == currentTheme }) {
@@ -127,6 +122,35 @@ private struct AppearanceSettings: View {
                 }
             }
 
+            Section("Window") {
+                HStack {
+                    Text("Background Opacity")
+                    Slider(value: $backgroundOpacity, in: 0.3 ... 1.0)
+                    Text("\(Int((backgroundOpacity * 100).rounded()))%")
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
+                .onChange(of: backgroundOpacity) { _, v in
+                    Preferences.shared.windowOpacity = v
+                }
+
+                HStack {
+                    Text("Background Blur")
+                    Slider(value: $backgroundBlurRadius, in: 0 ... 100)
+                    Text("\(Int(backgroundBlurRadius.rounded()))")
+                        .monospacedDigit()
+                        .frame(width: 42, alignment: .trailing)
+                }
+                .onChange(of: backgroundBlurRadius) { _, v in
+                    Preferences.shared.windowBlurRadius = Int(v.rounded())
+                }
+                .disabled(backgroundOpacity >= 0.999)
+
+                Text("Blur only takes effect when opacity is below 100%. Set to 0 to disable.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Layout") {
                 Toggle("Auto-tile panes", isOn: $autoTilingEnabled)
                     .onChange(of: autoTilingEnabled) { _, v in
@@ -140,15 +164,8 @@ private struct AppearanceSettings: View {
         .formStyle(.grouped)
         .task { await loadThemes() }
         .onAppear {
-            loadCurrentValues()
             monoFonts = Self.loadMonoFonts()
         }
-    }
-
-    private func loadCurrentValues() {
-        currentTheme = MactermConfig.shared.value(for: "theme")?.replacingOccurrences(of: "\"", with: "") ?? ""
-        currentFont = MactermConfig.shared.value(for: "font-family") ?? ""
-        fontSize = Int(MactermConfig.shared.value(for: "font-size") ?? "") ?? 12
     }
 
     private static func loadMonoFonts() -> [String] {
@@ -311,7 +328,7 @@ private struct KeymapSettings: View {
     @State
     private var invalidActions: Set<String> = []
     @State
-    private var optionAsAlt: OptionAsAlt = .from(MactermConfig.shared.value(for: "macos-option-as-alt"))
+    private var optionAsAlt: OptionAsAlt = .from(Preferences.shared.optionAsAlt)
 
     var body: some View {
         Form {
@@ -322,8 +339,7 @@ private struct KeymapSettings: View {
                     }
                 }
                 .onChange(of: optionAsAlt) { _, v in
-                    MactermConfig.shared.updateValue("macos-option-as-alt", value: v.rawValue)
-                    GhosttyApp.shared.reloadConfig()
+                    Preferences.shared.optionAsAlt = v.rawValue
                 }
                 Text(
                     "Pick \"Left\" or \"Right\" to keep one Option key for typing macOS special characters "

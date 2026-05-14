@@ -79,25 +79,6 @@ final class GhosttyApp {
         NotificationCenter.default.post(name: .mactermConfigDidChange, object: nil)
     }
 
-    var backgroundOpacity: Double {
-        guard let config else { return 1.0 }
-        var value = 1.0
-        let key = "background-opacity"
-        return ghostty_config_get(config, &value, key, UInt(key.utf8.count)) ? max(0, min(1, value)) : 1.0
-    }
-
-    /// Whether the user has requested a blurred window background via
-    /// `background-blur = <radius>` (or `true`) in ghostty.conf. Negative
-    /// values are ghostty's glass-style flags, which Macterm doesn't expose
-    /// yet — treat them as disabled.
-    var backgroundBlurEnabled: Bool {
-        guard let config else { return false }
-        var value: Int16 = 0
-        let key = "background-blur"
-        guard ghostty_config_get(config, &value, key, UInt(key.utf8.count)) else { return false }
-        return value > 0
-    }
-
     var backgroundColor: NSColor { configColor("background") ?? NSColor(srgbRed: 0.11, green: 0.11, blue: 0.14, alpha: 1) }
     var foregroundColor: NSColor { configColor("foreground") ?? .white }
     var accentColor: NSColor { paletteColor(at: 4) ?? foregroundColor }

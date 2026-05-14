@@ -1,5 +1,4 @@
 import AppKit
-import GhosttyKit
 
 extension NSView {
     /// Recursively finds the first descendant view whose class name (as a string)
@@ -19,6 +18,35 @@ extension NSView {
     }
 }
 
+// MARK: - Private CGS blur SPI
+
+/// `CGSSetWindowBackgroundBlurRadius` is a private CoreGraphics API that
+/// every macOS terminal (Terminal.app, iTerm, Ghostty) uses to blur the
+/// content behind a translucent window. It's undocumented but stable;
+/// libghostty exposes the same call.
+private let cgsConnectionFnPtr: @convention(c) () -> Int32 = {
+    let handle = dlopen(nil, RTLD_NOW)
+    guard let sym = dlsym(handle, "CGSDefaultConnectionForThread") else {
+        fatalError("CGSDefaultConnectionForThread symbol not found")
+    }
+    return unsafeBitCast(sym, to: (@convention(c) () -> Int32).self)
+}()
+
+private let cgsSetBlurFnPtr: @convention(c) (Int32, Int, Int32) -> Int32 = {
+    let handle = dlopen(nil, RTLD_NOW)
+    guard let sym = dlsym(handle, "CGSSetWindowBackgroundBlurRadius") else {
+        fatalError("CGSSetWindowBackgroundBlurRadius symbol not found")
+    }
+    return unsafeBitCast(sym, to: (@convention(c) (Int32, Int, Int32) -> Int32).self)
+}()
+
+@MainActor
+func setWindowBackgroundBlur(_ window: NSWindow, radius: Int) {
+    _ = cgsSetBlurFnPtr(cgsConnectionFnPtr(), window.windowNumber, Int32(radius))
+}
+
+// MARK: - Window styling
+
 /// Encapsulates the Tahoe-only window styling work needed to make the titlebar
 /// blend with a transparent terminal background. AppKit gives us two surface
 /// areas — the content view and a separate, system-owned titlebar view tree —
@@ -37,9 +65,9 @@ enum WindowAppearance {
     /// onscreen, on theme changes, and on focus changes (AppKit recreates
     /// titlebar subviews under us in some cases, e.g. tab bar appearing).
     static func sync(window: NSWindow) {
-        let opacity = GhosttyApp.shared.backgroundOpacity
+        let opacity = Preferences.shared.windowOpacity
+        let blurRadius = Preferences.shared.windowBlurRadius
         let bg = GhosttyApp.shared.backgroundColor
-        let blurEnabled = GhosttyApp.shared.backgroundBlurEnabled
         let isTransparent = opacity < 1.0
 
         // Native fullscreen draws its own opaque grey background; widgets show
@@ -53,42 +81,40 @@ enum WindowAppearance {
             // special-cased somewhere in AppKit and produces a visibly
             // different composite. The near-zero alpha works around it.
             window.backgroundColor = .white.withAlphaComponent(0.001)
-            if blurEnabled, let app = GhosttyApp.shared.app {
-                ghostty_set_window_background_blur(app, Unmanaged.passUnretained(window).toOpaque())
-            }
+            // Apply blur unconditionally; passing 0 clears any previous blur.
+            setWindowBackgroundBlur(window, radius: blurRadius)
         } else {
             window.isOpaque = true
             window.backgroundColor = bg
+            // Make sure a previous blur is cleared when going opaque.
+            setWindowBackgroundBlur(window, radius: 0)
         }
 
         // Override the titlebar's private background layer so its color
         // matches the terminal background (or stays transparent when the
         // window is). Without this the titlebar paints its own material
         // and you get a visible seam at y=titlebarHeight.
-        syncTitlebar(window: window, isTransparent: effectiveTransparent, bg: bg)
+        syncTitlebar(window: window, isTransparent: effectiveTransparent)
     }
 
-    private static func syncTitlebar(window: NSWindow, isTransparent: Bool, bg: NSColor) {
+    private static func syncTitlebar(window: NSWindow, isTransparent: Bool) {
         guard let container = titlebarContainer(in: window) else { return }
 
         if let titlebarView = container.firstDescendant(withClassName: "NSTitlebarView") {
             titlebarView.wantsLayer = true
-            // On Tahoe with liquid glass, the NavigationSplitView's sidebar
-            // is a system glass surface that extends behind the titlebar by
-            // design. Painting a flat color over the titlebar covers that
-            // glass and creates a visible break across the sidebar. Instead,
-            // leave the titlebar transparent and let the system materials
-            // (glass sidebar on one side, detail view's painted bg on the
-            // other) show through. In the opaque case we still fill so the
-            // titlebar matches the terminal background.
-            titlebarView.layer?.backgroundColor = isTransparent
-                ? NSColor.clear.cgColor
-                : bg.cgColor
+            // On Tahoe, the NavigationSplitView's sidebar is a liquid-glass
+            // surface that extends behind the titlebar by design. Painting
+            // any flat color on the titlebar layer draws a band over that
+            // glass and creates a visible seam. Keep the layer transparent
+            // and let AppKit's default titlebar materials (or the content
+            // view, with `.fullSizeContentView`) show through in both modes.
+            titlebarView.layer?.backgroundColor = NSColor.clear.cgColor
         }
 
         // NSTitlebarBackgroundView has subviews that force their own background
-        // colors; hiding it is the only way to keep our override visible.
-        container.firstDescendant(withClassName: "NSTitlebarBackgroundView")?.isHidden = true
+        // colors; hide it only when transparent, so the default opaque-mode
+        // chrome stays intact.
+        container.firstDescendant(withClassName: "NSTitlebarBackgroundView")?.isHidden = isTransparent
     }
 
     private static func titlebarContainer(in window: NSWindow) -> NSView? {

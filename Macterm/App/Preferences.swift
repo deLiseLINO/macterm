@@ -28,6 +28,67 @@ final class Preferences {
         }
     }
 
+    /// Empty string = use the ghostty default theme.
+    var theme: String {
+        didSet {
+            defaults.set(theme, forKey: Keys.theme)
+            notifyConfigChanged()
+        }
+    }
+
+    /// Empty string = use the ghostty default font.
+    var fontFamily: String {
+        didSet {
+            defaults.set(fontFamily, forKey: Keys.fontFamily)
+            notifyConfigChanged()
+        }
+    }
+
+    var fontSize: Int {
+        didSet {
+            defaults.set(fontSize, forKey: Keys.fontSize)
+            notifyConfigChanged()
+        }
+    }
+
+    /// One of "true", "false", "left", "right" — matches ghostty's accepted values.
+    var optionAsAlt: String {
+        didSet {
+            defaults.set(optionAsAlt, forKey: Keys.optionAsAlt)
+            notifyConfigChanged()
+        }
+    }
+
+    // MARK: - Window
+
+    /// Macterm-painted window background opacity (0–1). Independent from
+    /// ghostty's renderer — we always tell ghostty to render fully opaque
+    /// terminal content, then Macterm composites this translucency at the
+    /// window level. Avoids the double-paint problem when both layers tint.
+    var windowOpacity: Double {
+        didSet {
+            defaults.set(windowOpacity, forKey: Keys.windowOpacity)
+            notifyConfigChanged()
+        }
+    }
+
+    /// CGSSetWindowBackgroundBlurRadius value (0–100). 0 = no blur.
+    var windowBlurRadius: Int {
+        didSet {
+            defaults.set(windowBlurRadius, forKey: Keys.windowBlurRadius)
+            notifyConfigChanged()
+        }
+    }
+
+    /// Settings → file → libghostty reload pipeline. Each preference setter
+    /// that maps to ghostty config (theme, font, opacity, etc.) calls this so
+    /// the change propagates through the renderer and to any window-appearance
+    /// observers in one shot.
+    private func notifyConfigChanged() {
+        MactermConfig.shared.regenerate()
+        GhosttyApp.shared.reloadConfig()
+    }
+
     // MARK: - Quick terminal
 
     var quickTerminalEnabled: Bool {
@@ -58,6 +119,12 @@ final class Preferences {
     private init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         autoTilingEnabled = defaults.bool(forKey: Keys.autoTiling)
+        theme = defaults.string(forKey: Keys.theme) ?? "Rose Pine"
+        fontFamily = defaults.string(forKey: Keys.fontFamily) ?? ""
+        fontSize = defaults.object(forKey: Keys.fontSize) as? Int ?? 16
+        optionAsAlt = defaults.string(forKey: Keys.optionAsAlt) ?? "true"
+        windowOpacity = (defaults.object(forKey: Keys.windowOpacity) as? Double) ?? 1.0
+        windowBlurRadius = defaults.integer(forKey: Keys.windowBlurRadius)
         quickTerminalEnabled = defaults.object(forKey: Keys.quickTerminalEnabled) as? Bool ?? true
         quickTerminalWidthFraction = Self.clampFraction(defaults.double(forKey: Keys.quickTerminalWidth), fallback: 0.6)
         quickTerminalHeightFraction = Self.clampFraction(defaults.double(forKey: Keys.quickTerminalHeight), fallback: 0.5)
@@ -73,6 +140,12 @@ final class Preferences {
 
     enum Keys {
         static let autoTiling = "macterm.autoTiling.enabled"
+        static let theme = "macterm.appearance.theme"
+        static let fontFamily = "macterm.appearance.fontFamily"
+        static let fontSize = "macterm.appearance.fontSize"
+        static let optionAsAlt = "macterm.input.optionAsAlt"
+        static let windowOpacity = "macterm.window.opacity"
+        static let windowBlurRadius = "macterm.window.blurRadius"
         static let quickTerminalEnabled = "macterm.quickTerminal.enabled"
         static let quickTerminalWidth = "macterm.quickTerminal.width"
         static let quickTerminalHeight = "macterm.quickTerminal.height"

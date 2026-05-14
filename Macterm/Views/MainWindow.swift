@@ -15,6 +15,13 @@ struct MainWindow: View {
                 .navigationSplitViewColumnWidth(min: 140, ideal: 180, max: 280)
         } detail: {
             ZStack {
+                // Paint the detail background at the configured opacity, even
+                // when a terminal is rendering. There's a slight double-up
+                // with ghostty's own translucent surface in the terminal
+                // body, but keeping this full-bleed is what makes the
+                // titlebar region read at the right opacity — without it,
+                // the titlebar reads as fully transparent over the detail
+                // column. The double-up is small and visually acceptable.
                 MactermTheme.bgWithOpacity
                     .ignoresSafeArea(.container, edges: .top)
                 if let project = activeProjectWithWorkspace {
@@ -285,9 +292,7 @@ private struct WindowStyler: NSViewRepresentable {
                 queue: .main
             ) { [weak window] _ in
                 guard let window else { return }
-                MainActor.assumeIsolated {
-                    WindowAppearance.sync(window: window)
-                }
+                MainActor.assumeIsolated { WindowAppearance.sync(window: window) }
             }
         }
 

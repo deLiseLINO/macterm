@@ -1,5 +1,15 @@
 import Foundation
 
+/// Generates the ghostty config file that libghostty loads. Macterm owns this
+/// config entirely — users do not edit it. All user-facing settings live in
+/// `Preferences` (UserDefaults); `regenerate()` reads them and writes a fresh
+/// ghostty.conf to App Support, which `GhosttyApp.loadConfig` then loads.
+///
+/// We force `background-opacity = 1` and `background-blur = 0` so ghostty's
+/// renderer draws fully opaque terminal content. Window translucency is
+/// composited at the window level by Macterm (see `WindowAppearance`),
+/// avoiding the double-paint that happens when both ghostty and Macterm
+/// tint the same pixels.
 @MainActor @Observable
 final class MactermConfig {
     static let shared = MactermConfig()
@@ -9,80 +19,51 @@ final class MactermConfig {
     private init() {
         let dir = FileStorage.appSupportDirectory()
         ghosttyConfigURL = dir.appendingPathComponent("ghostty.conf")
-        seedIfNeeded()
-        // Ensure option-as-alt is set for pre-existing installs that were
-        // seeded before this default became part of Macterm.
-        if value(for: "macos-option-as-alt") == nil {
-            updateValue("macos-option-as-alt", value: "true")
-        }
+        // Write a fresh config on every launch so the file always reflects
+        // the current Preferences state — no stale lines from previous runs.
+        regenerate()
     }
 
     var ghosttyConfigPath: String { ghosttyConfigURL.path }
 
-    func readConfig() -> String {
-        (try? String(contentsOf: ghosttyConfigURL, encoding: .utf8)) ?? ""
-    }
+    /// Rebuild the ghostty.conf file from current `Preferences` values.
+    /// Called on launch and whenever a relevant preference changes.
+    func regenerate() {
+        let prefs = Preferences.shared
+        var lines: [String] = []
 
-    func setManagedWindowPaddingTop(_ value: Int) {
-        updateValue("window-padding-top", value: String(max(0, value)))
-        updateValue("window-padding-balance", value: "false")
-    }
+        // --- Macterm-managed window appearance ---
+        // Hand ghostty a fully-transparent terminal surface (background-opacity
+        // = 0). Ghostty draws only the text and cursor; the colored fill behind
+        // the text comes from Macterm's bgWithOpacity SwiftUI layer, which is
+        // the single source of window translucency. This avoids the double-tint
+        // that happens when both ghostty's renderer and SwiftUI tint the same
+        // pixels.
+        lines.append("background-opacity = 0")
+        // We drive window blur ourselves via the CGS SPI, not ghostty's wrapper.
+        lines.append("background-blur = 0")
 
-    func updateValue(_ key: String, value: String) {
-        var lines = readConfig().components(separatedBy: "\n")
-        let entry = "\(key) = \(value)"
-        if let index = findLine(for: key, in: lines) {
-            lines[index] = entry
-        } else {
-            lines.insert(entry, at: 0)
+        // --- User-configurable via Settings UI ---
+        if !prefs.theme.isEmpty {
+            lines.append("theme = \"\(prefs.theme)\"")
         }
-        try? Data(lines.joined(separator: "\n").utf8).write(to: ghosttyConfigURL, options: .atomic)
-    }
-
-    func removeValue(_ key: String) {
-        var lines = readConfig().components(separatedBy: "\n")
-        if let index = findLine(for: key, in: lines) {
-            lines.remove(at: index)
-            try? Data(lines.joined(separator: "\n").utf8).write(to: ghosttyConfigURL, options: .atomic)
+        if !prefs.fontFamily.isEmpty {
+            lines.append("font-family = \(prefs.fontFamily)")
         }
-    }
+        lines.append("font-size = \(prefs.fontSize)")
+        lines.append("macos-option-as-alt = \(prefs.optionAsAlt)")
 
-    func value(for key: String) -> String? {
-        let lines = readConfig().components(separatedBy: .newlines)
-        guard let index = findLine(for: key, in: lines) else { return nil }
-        let line = lines[index]
-        guard let eqIndex = line.firstIndex(of: "=") else { return nil }
-        return String(line[line.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
-    }
+        // --- Sensible defaults the user can't currently override ---
+        // Keep this list minimal; expose to Settings UI as needed instead of
+        // documenting "edit this file." Anything here should be a default that
+        // virtually all users will want.
+        lines.append("scrollbar = system")
+        lines.append("mouse-hide-while-typing = true")
+        lines.append("clipboard-trim-trailing-spaces = true")
+        lines.append("window-padding-x = 16")
+        lines.append("window-padding-y = 16")
 
-    private func findLine(for key: String, in lines: [String]) -> Int? {
-        lines.firstIndex { line in
-            let t = line.trimmingCharacters(in: .whitespaces)
-            guard t.hasPrefix(key) else { return false }
-            let rest = t.dropFirst(key.count)
-            guard let next = rest.first else { return false }
-            return next == "=" || next.isWhitespace
-        }
-    }
-
-    private func seedIfNeeded() {
-        guard !FileManager.default.fileExists(atPath: ghosttyConfigURL.path) else { return }
-        let systemConfig = NSHomeDirectory() + "/.config/ghostty/config"
-        var content = ""
-        if FileManager.default.fileExists(atPath: systemConfig),
-           let sysContent = try? String(contentsOfFile: systemConfig, encoding: .utf8)
-        {
-            content = sysContent
-        } else {
-            content = "scrollbar = system\n"
-        }
-        // Option-as-Alt defaults on so shells/editors receive the Alt
-        // modifier for word navigation etc. Users can opt out in
-        // Settings → Appearance → Input or by editing the config.
-        if !content.contains("macos-option-as-alt") {
-            content += (content.hasSuffix("\n") ? "" : "\n") + "macos-option-as-alt = true\n"
-        }
-
+        let content = lines.joined(separator: "\n") + "\n"
         try? Data(content.utf8).write(to: ghosttyConfigURL, options: .atomic)
     }
 }

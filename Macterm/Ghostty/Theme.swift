@@ -7,13 +7,13 @@ enum MactermTheme {
     static var bg: Color { Color(nsColor: GhosttyApp.shared.backgroundColor) }
     @MainActor
     static var nsBg: NSColor { GhosttyApp.shared.backgroundColor }
-    /// Background tinted by `background-opacity` from ghostty.conf. Use for
+    /// Background tinted by `Preferences.shared.windowOpacity`. Use for
     /// SwiftUI chrome that should follow window transparency (sidebar,
     /// palette, search bar). `bg`/`nsBg` stay opaque for callers that need
     /// a known-solid base color.
     @MainActor
     static var bgWithOpacity: Color {
-        Color(nsColor: GhosttyApp.shared.backgroundColor.withAlphaComponent(GhosttyApp.shared.backgroundOpacity))
+        Color(nsColor: GhosttyApp.shared.backgroundColor.withAlphaComponent(Preferences.shared.windowOpacity))
     }
 
     @MainActor
