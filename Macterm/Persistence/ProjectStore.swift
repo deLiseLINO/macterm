@@ -29,6 +29,13 @@ final class ProjectStore {
         save()
     }
 
+    func setPath(id: UUID, to newPath: String) {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else { return }
+        guard projects[index].path != newPath else { return }
+        projects[index].path = newPath
+        save()
+    }
+
     func reorder(fromOffsets source: IndexSet, toOffset destination: Int) {
         projects.move(fromOffsets: source, toOffset: destination)
         for i in projects.indices {

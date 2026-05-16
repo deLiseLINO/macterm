@@ -120,6 +120,24 @@ final class AppState {
         return project
     }
 
+    /// Update the active project's path to wherever the focused pane currently
+    /// sits (via OSC 7 — `pane.nsView.currentPwd`). Useful when a project
+    /// started in one directory but the user has settled into a subdirectory
+    /// and wants new tabs / persisted state to start there.
+    ///
+    /// No-op when there's no active project or no resolvable pwd. We don't
+    /// touch open panes or workspaces — those keep their current cwd; only
+    /// future tabs created via `createTab(projectID:projects:)` (which reads
+    /// `project.path`) will land in the new directory.
+    func replaceProjectPathWithCurrentDir(projectStore: ProjectStore) {
+        guard let projectID = activeProjectID,
+              let pane = focusedPane(for: projectID),
+              let pwd = pane.nsView?.currentPwd,
+              !pwd.isEmpty
+        else { return }
+        projectStore.setPath(id: projectID, to: pwd)
+    }
+
     func removeProject(_ projectID: UUID) {
         if let ws = workspaces[projectID] {
             for pane in ws.tabs.flatMap({ $0.splitRoot.allPanes() }) {

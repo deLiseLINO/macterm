@@ -120,6 +120,16 @@ struct CommandSource: PaletteSource {
                 ctx.appState.removeProject(projectID)
                 ctx.projectStore.remove(id: projectID)
             }
+        case .replaceProjectPathWithCurrentDir:
+            // Only meaningful when there's an active project AND the focused
+            // pane's pwd differs from the project's current path. Hiding the
+            // entry otherwise keeps the palette uncluttered.
+            guard let projectID,
+                  let pane = ctx.appState.focusedPane(for: projectID),
+                  let pwd = pane.nsView?.currentPwd, !pwd.isEmpty,
+                  current?.path != pwd
+            else { return nil }
+            action = { ctx.appState.replaceProjectPathWithCurrentDir(projectStore: ctx.projectStore) }
         case .nextProject:
             action = { ctx.appState.selectNextProject(projects: ctx.projectStore.projects) }
         case .previousProject:
