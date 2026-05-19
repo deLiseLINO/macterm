@@ -149,7 +149,7 @@ enum WorkspaceSerializer {
         snapshots.compactMap { snap in
             guard validIDs.contains(snap.projectID) else { return nil }
             let tabs = snap.tabs.map { t in
-                let root = restoreNode(t.splitRoot)
+                let root = restoreNode(t.splitRoot, projectID: snap.projectID)
                 let focused = t.focusedPaneID.flatMap { root.findPane(id: $0)?.id } ?? root.allPanes().first?.id
                 return TerminalTab(id: t.id, splitRoot: root, focusedPaneID: focused, customTitle: t.customTitle)
             }
@@ -177,18 +177,18 @@ enum WorkspaceSerializer {
         }
     }
 
-    private static func restoreNode(_ snap: SplitNodeSnapshot) -> SplitNode {
+    private static func restoreNode(_ snap: SplitNodeSnapshot, projectID: UUID) -> SplitNode {
         switch snap {
         case let .pane(p):
-            let pane = Pane(projectPath: p.projectPath)
+            let pane = Pane(projectPath: p.projectPath, projectID: projectID)
             pane.title = p.title
             return .pane(pane)
         case let .split(b):
             return .split(SplitBranch(
                 direction: b.direction,
                 ratio: CGFloat(b.ratio),
-                first: restoreNode(b.first),
-                second: restoreNode(b.second)
+                first: restoreNode(b.first, projectID: projectID),
+                second: restoreNode(b.second, projectID: projectID)
             ))
         }
     }

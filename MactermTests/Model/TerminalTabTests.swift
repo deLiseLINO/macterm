@@ -8,7 +8,7 @@ struct TerminalTabTests {
     /// replacing its splitRoot.
     private func makeTab(_ spec: TreeSpec, focused: String? = nil) -> (TerminalTab, [String: UUID]) {
         let (tree, ids) = build(spec)
-        let tab = TerminalTab(projectPath: "/")
+        let tab = TerminalTab(projectPath: "/", projectID: UUID())
         tab.splitRoot = tree
         tab.focusedPaneID = focused.flatMap { ids[$0] } ?? tree.allPanes().first?.id
         tab.paneFocusHistory = RecencyStack(limit: 20)

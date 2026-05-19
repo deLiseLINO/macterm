@@ -26,7 +26,7 @@ struct TreeSpec {
 func pane(_ name: String, projectPath: String = "/") -> TreeSpec {
     TreeSpec { registry in
         precondition(registry[name] == nil, "duplicate pane name in tree: \(name)")
-        let p = Pane(projectPath: projectPath)
+        let p = Pane(projectPath: projectPath, projectID: UUID())
         registry[name] = p.id
         return .pane(p)
     }

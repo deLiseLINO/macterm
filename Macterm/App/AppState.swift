@@ -301,6 +301,25 @@ final class AppState {
         workspaces[projectID]?.activeTab?.focusPane(paneID)
     }
 
+    func navigateToPane(_ paneID: UUID, projectID: UUID) {
+        recordProjectVisit(projectID)
+        activeProjectID = projectID
+        if let tab = workspaces[projectID]?.tabs.first(where: { $0.splitRoot.findPane(id: paneID) != nil }) {
+            workspaces[projectID]?.selectTab(tab.id)
+            tab.focusPane(paneID)
+        }
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.reopenIfNeeded()
+        }
+        NSApp.activate()
+        if let tab = workspaces[projectID]?.tabs.first(where: { $0.splitRoot.findPane(id: paneID) != nil }) {
+            let window = NSApp.keyWindow ?? NSApp.mainWindow
+            DispatchQueue.main.async {
+                FocusRestoration.restoreFocus(to: paneID, in: tab.splitRoot, window: window)
+            }
+        }
+    }
+
     func focusedPane(for projectID: UUID) -> Pane? {
         workspaces[projectID]?.activeTab?.focusedPane
     }

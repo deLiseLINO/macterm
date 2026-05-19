@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class QuickTerminalService: NSObject {
     static let shared = QuickTerminalService()
+    static let projectID = UUID()
 
     private(set) var panel: QuickTerminalPanel?
     var panelRef: QuickTerminalPanel? { panel }
@@ -111,6 +112,18 @@ final class QuickTerminalService: NSObject {
             return
         }
         if isVisible { hide() } else { show() }
+    }
+
+    func showPanel() {
+        guard isEnabled else { return }
+        if isVisible {
+            panel?.makeKeyAndOrderFront(nil)
+            if let focusedID = splitState.focusedPaneID {
+                FocusRestoration.restoreFocus(to: focusedID, in: splitState.splitRoot, window: panel)
+            }
+        } else {
+            show()
+        }
     }
 
     // MARK: - Hot key
@@ -284,7 +297,7 @@ final class QuickTerminalSplitState {
     }
 
     init() {
-        tab = TerminalTab(projectPath: NSHomeDirectory())
+        tab = TerminalTab(projectPath: NSHomeDirectory(), projectID: QuickTerminalService.projectID)
     }
 
     func focusPane(_ paneID: UUID) {
@@ -352,7 +365,7 @@ final class QuickTerminalSplitState {
             // Replace the whole tab with a fresh one — the quick terminal should
             // always have at least one pane, but we fully reset so the prior
             // pane's surface is torn down (removePane already destroyed it).
-            tab = TerminalTab(projectPath: NSHomeDirectory())
+            tab = TerminalTab(projectPath: NSHomeDirectory(), projectID: QuickTerminalService.projectID)
         case .removed,
              .notFound:
             break
@@ -383,7 +396,6 @@ final class QuickTerminalPanel: NSPanel {
 // MARK: - Views
 
 private struct QuickTerminalView: View {
-    static let projectID = UUID()
     @Bindable var state: QuickTerminalSplitState
 
     var body: some View {
@@ -398,7 +410,7 @@ private struct QuickTerminalView: View {
             focusedPaneID: state.focusedPaneID,
             zoomedPaneID: state.tab.zoomedPaneID,
             isActiveProject: true,
-            projectID: Self.projectID,
+            projectID: QuickTerminalService.projectID,
             onFocusPane: { state.focusPane($0) },
             onSplit: { paneID, dir in state.split(paneID: paneID, direction: dir) },
             onClosePane: { state.closePane($0) },

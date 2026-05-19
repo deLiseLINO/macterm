@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct MactermApp: App {
@@ -35,6 +36,7 @@ struct MactermApp: App {
                 .onAppear {
                     appDelegate.appState = appState
                     appDelegate.projectStore = projectStore
+                    NotificationHandler.shared.appState = appState
                     appDelegate.onTerminate = { [appState] in appState.saveWorkspaces() }
                     appDelegate.installResponders(appState: appState, projectStore: projectStore)
                 }
@@ -89,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
             return
         }
+        UNUserNotificationCenter.current().delegate = NotificationHandler.shared
+        NotificationHandler.shared.requestAuthorization()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         _ = GhosttyApp.shared

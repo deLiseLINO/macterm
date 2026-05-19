@@ -9,6 +9,7 @@ enum SplitPosition { case first, second }
 final class Pane: Identifiable {
     let id = UUID()
     let projectPath: String
+    let projectID: UUID
     var title: String = "Terminal"
     let searchState = TerminalSearchState()
 
@@ -44,6 +45,7 @@ final class Pane: Identifiable {
         view.onSearchSelected = nil
         view.onFocus = nil
         view.onSplitRequest = nil
+        view.onDesktopNotification = nil
         view.destroySurface()
         _nsView = nil
         // Keep the NSView alive for a runloop tick so any in-flight ghostty
@@ -82,8 +84,9 @@ final class Pane: Identifiable {
         token.allSatisfy { !$0.isLetter && !$0.isNumber }
     }
 
-    init(projectPath: String) {
+    init(projectPath: String, projectID: UUID) {
         self.projectPath = projectPath
+        self.projectID = projectID
     }
 }
 
@@ -124,25 +127,33 @@ extension SplitNode {
         paneID: UUID,
         direction: SplitDirection,
         position: SplitPosition,
-        projectPath: String
+        projectPath: String,
+        projectID: UUID
     ) -> (node: SplitNode, newPaneID: UUID?) {
         switch self {
         case let .pane(p) where p.id == paneID:
-            let newPane = Pane(projectPath: projectPath)
+            let newPane = Pane(projectPath: projectPath, projectID: projectID)
             let first: SplitNode = position == .first ? .pane(newPane) : .pane(p)
             let second: SplitNode = position == .first ? .pane(p) : .pane(newPane)
             return (.split(SplitBranch(direction: direction, first: first, second: second)), newPane.id)
         case .pane:
             return (self, nil)
         case let .split(branch):
-            let (newFirst, id1) = branch.first.splitting(paneID: paneID, direction: direction, position: position, projectPath: projectPath)
+            let (newFirst, id1) = branch.first.splitting(
+                paneID: paneID,
+                direction: direction,
+                position: position,
+                projectPath: projectPath,
+                projectID: projectID
+            )
             branch.first = newFirst
             if id1 != nil { return (.split(branch), id1) }
             let (newSecond, id2) = branch.second.splitting(
                 paneID: paneID,
                 direction: direction,
                 position: position,
-                projectPath: projectPath
+                projectPath: projectPath,
+                projectID: projectID
             )
             branch.second = newSecond
             return (.split(branch), id2)

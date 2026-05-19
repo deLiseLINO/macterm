@@ -103,6 +103,7 @@ targets:
       - sdk: Metal.framework
       - sdk: MetalKit.framework
       - sdk: QuartzCore.framework
+      - sdk: UserNotifications.framework
 
   MactermTests:
     type: bundle.unit-test

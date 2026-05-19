@@ -54,9 +54,9 @@ final class TerminalTab: Identifiable {
         return splitRoot.findPane(id: focusedPaneID)
     }
 
-    init(projectPath: String) {
+    init(projectPath: String, projectID: UUID) {
         id = UUID()
-        let pane = Pane(projectPath: projectPath)
+        let pane = Pane(projectPath: projectPath, projectID: projectID)
         splitRoot = .pane(pane)
         focusedPaneID = pane.id
     }
@@ -95,8 +95,9 @@ final class TerminalTab: Identifiable {
         let pane = splitRoot.findPane(id: paneID)
         let livePwd = pane?.nsView?.currentPwd
         let sourcePath = livePwd ?? pane?.projectPath ?? NSHomeDirectory()
+        let sourceProjectID = pane?.projectID ?? UUID()
         let (newRoot, newID) = splitRoot.splitting(
-            paneID: paneID, direction: direction, position: .second, projectPath: sourcePath
+            paneID: paneID, direction: direction, position: .second, projectPath: sourcePath, projectID: sourceProjectID
         )
         splitRoot = newRoot
         // Splitting reveals a new pane — exit zoom so it's visible.
@@ -157,7 +158,7 @@ final class Workspace: Identifiable {
 
     init(projectID: UUID, projectPath: String) {
         self.projectID = projectID
-        let tab = TerminalTab(projectPath: projectPath)
+        let tab = TerminalTab(projectPath: projectPath, projectID: projectID)
         tabs.append(tab)
         activeTabID = tab.id
     }
@@ -178,7 +179,7 @@ final class Workspace: Identifiable {
 
     @discardableResult
     func createTab(projectPath: String) -> TerminalTab {
-        let tab = TerminalTab(projectPath: projectPath)
+        let tab = TerminalTab(projectPath: projectPath, projectID: projectID)
         tabs.append(tab)
         if let current = activeTabID { tabHistory.push(current) }
         activeTabID = tab.id

@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 struct TerminalPane: View {
     let pane: Pane
@@ -134,5 +135,23 @@ private struct TerminalSurface: NSViewRepresentable {
         }
         view.onSearchTotal = { [weak pane] total in pane?.searchState.total = total }
         view.onSearchSelected = { [weak pane] sel in pane?.searchState.selected = sel }
+        view.onDesktopNotification = { [weak pane, weak view] title, body in
+            guard let pane else { return }
+            guard !(NSApp.isActive && view?.isFocused == true) else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.userInfo = [
+                "paneID": pane.id.uuidString,
+                "projectID": pane.projectID.uuidString,
+                "isQuickTerminal": pane.projectID == QuickTerminalService.projectID,
+            ]
+            let request = UNNotificationRequest(
+                identifier: "macterm-\(pane.id.uuidString)-\(Date().timeIntervalSince1970)",
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().add(request)
+        }
     }
 }

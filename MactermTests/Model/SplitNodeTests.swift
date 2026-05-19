@@ -10,7 +10,7 @@ struct SplitNodeTests {
     func splitting_replaces_leaf_with_branch() throws {
         let (tree, ids) = build(pane("a"))
         let (after, newID) = try tree.splitting(
-            paneID: #require(ids["a"]), direction: .horizontal, position: .second, projectPath: "/"
+            paneID: #require(ids["a"]), direction: .horizontal, position: .second, projectPath: "/", projectID: UUID()
         )
         #expect(newID != nil)
         #expect(after.allPanes().count == 2)
@@ -21,7 +21,7 @@ struct SplitNodeTests {
     func splitting_returns_new_pane_id_present_in_tree() throws {
         let (tree, ids) = build(pane("a"))
         let (after, newID) = try tree.splitting(
-            paneID: #require(ids["a"]), direction: .vertical, position: .second, projectPath: "/"
+            paneID: #require(ids["a"]), direction: .vertical, position: .second, projectPath: "/", projectID: UUID()
         )
         #expect(try after.contains(paneID: #require(newID)))
     }
@@ -30,7 +30,7 @@ struct SplitNodeTests {
     func splitting_first_position_places_new_pane_on_left() throws {
         let (tree, ids) = build(pane("a"))
         let (after, newID) = try tree.splitting(
-            paneID: #require(ids["a"]), direction: .horizontal, position: .first, projectPath: "/"
+            paneID: #require(ids["a"]), direction: .horizontal, position: .first, projectPath: "/", projectID: UUID()
         )
         guard case let .split(b) = after, case let .pane(firstPane) = b.first else {
             Issue.record("expected split with pane on first")
@@ -43,7 +43,7 @@ struct SplitNodeTests {
     func splitting_second_position_places_new_pane_on_right() throws {
         let (tree, ids) = build(pane("a"))
         let (after, newID) = try tree.splitting(
-            paneID: #require(ids["a"]), direction: .horizontal, position: .second, projectPath: "/"
+            paneID: #require(ids["a"]), direction: .horizontal, position: .second, projectPath: "/", projectID: UUID()
         )
         guard case let .split(b) = after, case let .pane(secondPane) = b.second else {
             Issue.record("expected split with pane on second")
@@ -56,7 +56,7 @@ struct SplitNodeTests {
     func splitting_nonexistent_pane_is_noop() {
         let (tree, _) = build(pane("a"))
         let (after, newID) = tree.splitting(
-            paneID: UUID(), direction: .horizontal, position: .second, projectPath: "/"
+            paneID: UUID(), direction: .horizontal, position: .second, projectPath: "/", projectID: UUID()
         )
         #expect(newID == nil)
         #expect(after.allPanes().count == 1)
@@ -67,7 +67,7 @@ struct SplitNodeTests {
         let (tree, ids) = build(H(pane("a"), V(pane("b"), pane("c"))))
         let beforeIDs = Set(tree.allPanes().map(\.id))
         let (after, newID) = try tree.splitting(
-            paneID: #require(ids["b"]), direction: .horizontal, position: .second, projectPath: "/"
+            paneID: #require(ids["b"]), direction: .horizontal, position: .second, projectPath: "/", projectID: UUID()
         )
         let afterIDs = Set(after.allPanes().map(\.id))
         #expect(beforeIDs.isSubset(of: afterIDs))
@@ -120,8 +120,12 @@ struct SplitNodeTests {
 
     @Test
     func findPane_returns_same_instance() {
-        let p = Pane(projectPath: "/")
-        let tree: SplitNode = .split(SplitBranch(direction: .horizontal, first: .pane(p), second: .pane(Pane(projectPath: "/"))))
+        let p = Pane(projectPath: "/", projectID: UUID())
+        let tree: SplitNode = .split(SplitBranch(
+            direction: .horizontal,
+            first: .pane(p),
+            second: .pane(Pane(projectPath: "/", projectID: UUID()))
+        ))
         #expect(tree.findPane(id: p.id) === p)
     }
 
