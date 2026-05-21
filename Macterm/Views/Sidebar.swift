@@ -165,8 +165,8 @@ private struct SidebarProjectRow: View {
             Divider()
             Button("Remove Project", role: .destructive, action: onRemove)
         }
-        .onChange(of: appState.renamingProjectID) { _, id in
-            if id == project.id { beginRename() }
+        .task(id: appState.renamingProjectID) {
+            if appState.renamingProjectID == project.id { beginRename() }
         }
     }
 
