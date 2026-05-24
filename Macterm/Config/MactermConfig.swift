@@ -48,7 +48,7 @@ final class MactermConfig {
         ].joined(separator: "\n") + "\n"
         try? Data(defaults.utf8).write(to: defaultsURL, options: .atomic)
 
-        let overrides = [
+        var overrides = [
             // Macterm composites window translucency at the AppKit level —
             // ghostty must draw a fully transparent terminal or we'd double-
             // tint. See WindowAppearance.swift.
@@ -56,7 +56,31 @@ final class MactermConfig {
             // We call CGSSetWindowBackgroundBlurRadius ourselves; ghostty's
             // own blur would compose on top of it.
             "background-blur = 0",
-        ].joined(separator: "\n") + "\n"
-        try? Data(overrides.utf8).write(to: overridesURL, options: .atomic)
+        ]
+
+        // libghostty auto-populates `GHOSTTY_BIN_DIR` in spawned shells from
+        // the host executable's directory — for us that's Macterm's bundle,
+        // which ships no `ghostty` CLI. The shell-integration `ssh` wrapper
+        // then tries to exec a non-existent `Macterm.app/Contents/MacOS/ghostty`
+        // and dies. If the real Ghostty.app is installed, point at its CLI;
+        // otherwise disable the wrappers that need the binary so they fall
+        // through to plain `ssh`. The `path` feature also relies on this dir
+        // being useful — turn it off when we have nothing to add.
+        if let binDir = resolveGhosttyBinDir() {
+            overrides.append("env = GHOSTTY_BIN_DIR=\(binDir)")
+        } else {
+            overrides.append("shell-integration-features = no-ssh-env,no-ssh-terminfo,no-path")
+        }
+
+        let body = overrides.joined(separator: "\n") + "\n"
+        try? Data(body.utf8).write(to: overridesURL, options: .atomic)
+    }
+
+    private func resolveGhosttyBinDir() -> String? {
+        let candidates = [
+            "/Applications/Ghostty.app/Contents/MacOS",
+            NSHomeDirectory() + "/Applications/Ghostty.app/Contents/MacOS",
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0 + "/ghostty") }
     }
 }

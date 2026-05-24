@@ -83,6 +83,8 @@ A handful of settings either don't apply or are overridden, because Macterm rend
 
 Macterm-specific settings (window opacity/blur, quick terminal dimensions, hotkeys, auto-tile) live in **Macterm → Settings**. Everything else belongs in your Ghostty config.
 
+The `ssh-env`, `ssh-terminfo`, and `path` shell-integration features need the `ghostty` CLI to do anything useful, and Macterm doesn't ship one. If Ghostty.app is installed alongside in `/Applications`, Macterm points the wrappers at its binary and they work normally. Otherwise these features are disabled — `ssh` and `sudo` still work, they just skip Ghostty's TERMINFO/forwarding tricks. Install Ghostty.app if you want them.
+
 ### Keybinds
 
 Most of your `keybind = ...` lines in Ghostty config work the same as in Ghostty.app. The one rule to know: **on conflict, Macterm wins.** If a keystroke matches one of Macterm's app-level shortcuts (new tab, splits, focus moves, command palette, etc.), Macterm handles it and Ghostty never sees the event. If it doesn't conflict, the keystroke flows through to libghostty and your Ghostty `keybind` fires normally.
