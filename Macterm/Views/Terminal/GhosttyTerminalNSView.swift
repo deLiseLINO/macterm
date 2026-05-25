@@ -443,7 +443,7 @@ final class GhosttyTerminalNSView: NSView {
         let menu = NSMenu(title: "Terminal")
         let paste = NSMenuItem(title: "Paste", action: #selector(handlePaste), keyEquivalent: "")
         paste.target = self
-        paste.isEnabled = NSPasteboard.general.string(forType: .string).map { !$0.isEmpty } ?? false
+        paste.isEnabled = GhosttyCallbacks.readPasteboardText() != nil
         menu.addItem(paste)
         menu.addItem(.separator())
         addSplitItem(menu, "Split Right", .horizontal, .second)
@@ -477,7 +477,7 @@ final class GhosttyTerminalNSView: NSView {
 
     @objc
     private func handlePaste() {
-        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
+        guard let text = GhosttyCallbacks.readPasteboardText() else { return }
         window?.makeFirstResponder(self)
         insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
     }

@@ -58,9 +58,75 @@ final class GhosttyCallbacks: @unchecked Sendable {
     }
 
     func readClipboard(ud: UnsafeMutableRawPointer?, location: ghostty_clipboard_e, state: UnsafeMutableRawPointer?) -> Bool {
-        let text = NSPasteboard.general.string(forType: .string) ?? ""
+        let text = Self.readPasteboardText() ?? ""
         text.withCString { ghostty_surface_complete_clipboard_request(surface(from: ud), $0, state, false) }
         return true
+    }
+
+    // MARK: - Pasteboard text resolution (shared with GhosttyTerminalNSView)
+
+    /// Mirrors Ghostty's ShellEscapeWriter for file paths pasted into the shell.
+    private static func shellEscape(_ s: String) -> String {
+        var result = ""
+        result.reserveCapacity(s.utf8.count)
+        for ch in s {
+            switch ch {
+            case "\\",
+                 "\"",
+                 "'",
+                 "$",
+                 "`",
+                 "*",
+                 "?",
+                 " ",
+                 "|",
+                 "(",
+                 ")":
+                result.append("\\" + String(ch))
+            default:
+                result.append(ch)
+            }
+        }
+        return result
+    }
+
+    /// Returns pasted text from the pasteboard: file paths (Finder drag/copy)
+    /// fall back to plain string. Called by both the context-menu paste path
+    /// and the libghostty Cmd+V clipboard path.
+    static func readPasteboardText() -> String? {
+        let pb = NSPasteboard.general
+
+        // Finder copies files as NSURL data, not strings.
+        if let urls = pb.readObjects(forClasses: [NSURL.self]) as? [URL] {
+            let paths = urls
+                .filter(\.isFileURL)
+                .map { Self.shellEscape($0.path(percentEncoded: false)) }
+                .filter { !$0.isEmpty }
+            if !paths.isEmpty {
+                return paths.joined(separator: " ")
+            }
+        }
+
+        if let items = pb.pasteboardItems {
+            let paths = items.compactMap { item -> String? in
+                guard let urlStr = item.string(forType: .fileURL), !urlStr.isEmpty
+                else { return nil }
+                let url: URL
+                if urlStr.hasPrefix("file://") {
+                    guard let parsed = URL(string: urlStr) else { return nil }
+                    url = parsed
+                } else {
+                    url = URL(filePath: urlStr)
+                }
+                let resolved = Self.shellEscape(url.path(percentEncoded: false))
+                return resolved.isEmpty ? nil : resolved
+            }
+            if !paths.isEmpty {
+                return paths.joined(separator: " ")
+            }
+        }
+
+        return pb.string(forType: .string).flatMap { !$0.isEmpty ? $0 : nil }
     }
 
     func confirmReadClipboard(ud: UnsafeMutableRawPointer?, content: UnsafePointer<CChar>?, state: UnsafeMutableRawPointer?) {
