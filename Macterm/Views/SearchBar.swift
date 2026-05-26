@@ -49,7 +49,7 @@ struct TerminalSearchBar: View {
             }
             .padding(.horizontal, 8)
             .frame(height: 32)
-            .background(MactermTheme.bg.opacity(0.95))
+            .background(Color.clear)
             Rectangle().fill(MactermTheme.border).frame(height: 1)
         }
         .onAppear { isFieldFocused = true }
