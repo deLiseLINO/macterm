@@ -84,34 +84,37 @@ A floating `NSPanel` that reuses the same `TerminalTab` / `SplitNode` / `Pane` m
 
 ### App Layer (`Macterm/App/`)
 
-| File                     | Purpose                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `MactermApp.swift`       | `@main` entry, `WindowGroup`, `AppDelegate`                                                                   |
-| `AppState.swift`         | Central observable state — workspaces, projects, tab/pane lifecycle. `WorkspaceStore` is injectable for tests |
-| `Preferences.swift`      | Observable UserDefaults wrapper (`Preferences.shared`) for app-level settings                                 |
-| `Hotkeys.swift`          | `HotkeyAction` enum, `HotkeyRegistry` for parsing/matching/display                                            |
-| `KeyRouter.swift`        | Installs the single `NSEvent` local monitor and runs events through the responder chain                       |
-| `Responders.swift`       | Ordered `KeyResponder` implementations (pending-close, tab cycle, command palette, hotkeys)                   |
-| `FocusRestoration.swift` | Retries `makeFirstResponder` across run loop ticks until the pane's NSView is in a window                     |
-| `RecencyStack.swift`     | Bounded most-recent-first stack of unique IDs (tab/pane focus history)                                        |
-| `Notifications.swift`    | Custom `Notification.Name` constants                                                                          |
-| `AppCommand.swift`       | Single source of truth for user-invokable actions; palette and Settings render from `AppCommand.allCases`     |
-| `AppTerminationState.swift` | `isTerminating` flag so `windowShouldClose` can distinguish user-close (hide) from quit (let close)        |
-| `Updater.swift`          | Sparkle wrapper (`Updater.shared`) + `CheckForUpdatesMenuItem` view                                           |
+| File                        | Purpose                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `MactermApp.swift`          | `@main` entry, `WindowGroup`, `AppDelegate`                                                                   |
+| `AppState.swift`            | Central observable state — workspaces, projects, tab/pane lifecycle. `WorkspaceStore` is injectable for tests |
+| `Preferences.swift`         | Observable UserDefaults wrapper (`Preferences.shared`) for app-level settings                                 |
+| `Hotkeys.swift`             | `HotkeyAction` enum, `HotkeyRegistry` for parsing/matching/display                                            |
+| `KeyRouter.swift`           | Installs the single `NSEvent` local monitor and runs events through the responder chain                       |
+| `Responders.swift`          | Ordered `KeyResponder` implementations (pending-close, tab cycle, command palette, hotkeys)                   |
+| `FocusRestoration.swift`    | Retries `makeFirstResponder` across run loop ticks until the pane's NSView is in a window                     |
+| `RecencyStack.swift`        | Bounded most-recent-first stack of unique IDs (tab/pane focus history)                                        |
+| `Notifications.swift`       | Custom `Notification.Name` constants                                                                          |
+| `AppCommand.swift`          | Single source of truth for user-invokable actions; palette and Settings render from `AppCommand.allCases`     |
+| `AppCommandActions.swift`   | `AppCommandContext` + `AppCommand.action(in:)` — the closure each command runs, shared by palette and menu    |
+| `AppCommandMenu.swift`      | `AppCommandMenuItem` SwiftUI view that renders an `AppCommand` in the menu bar via the same action closure    |
+| `NotificationHandler.swift` | `UNUserNotificationCenterDelegate` for OS-level user notifications                                            |
+| `AppTerminationState.swift` | `isTerminating` flag so `windowShouldClose` can distinguish user-close (hide) from quit (let close)           |
+| `Updater.swift`             | Sparkle wrapper (`Updater.shared`) + `CheckForUpdatesMenuItem` view                                           |
 
 ### Views (`Macterm/Views/`)
 
-| File                                   | Purpose                                                                                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `MainWindow.swift`                     | Main window layout, `WorkspaceView`, `WindowStyler`                                                     |
+| File                                   | Purpose                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `MainWindow.swift`                     | Main window layout, `WorkspaceView`, `WindowStyler`                                                              |
 | `WindowAppearance.swift`               | Window opacity/blur — sets `NSWindow.backgroundColor`, dives into private titlebar view tree, calls CGS blur SPI |
-| `Sidebar.swift`                        | Project/tab list with native `List(selection:)`                                                         |
-| `SplitTreeView.swift`                  | Recursive split rendering with draggable dividers                                                       |
-| `TerminalPane.swift`                   | `TerminalPane` + `TerminalSurface` (`NSViewRepresentable` borrowing `pane.nsView`) + search bar overlay |
-| `Terminal/GhosttyTerminalNSView.swift` | Core terminal NSView — surface, keyboard, mouse, IME                                                    |
-| `SearchBar.swift`                      | Terminal search UI                                                                                      |
-| `QuickTerminal.swift`                  | Quick terminal `NSPanel`, Carbon global hotkey                                                          |
-| `CommandPalette.swift`                 | `Cmd+Shift+P` / `Cmd+P` command palette                                                                 |
+| `Sidebar.swift`                        | Project/tab list with native `List(selection:)`                                                                  |
+| `SplitTreeView.swift`                  | Recursive split rendering with draggable dividers                                                                |
+| `TerminalPane.swift`                   | `TerminalPane` + `TerminalSurface` (`NSViewRepresentable` borrowing `pane.nsView`) + search bar overlay          |
+| `Terminal/GhosttyTerminalNSView.swift` | Core terminal NSView — surface, keyboard, mouse, IME                                                             |
+| `SearchBar.swift`                      | Terminal search UI                                                                                               |
+| `QuickTerminal.swift`                  | Quick terminal `NSPanel`, Carbon global hotkey                                                                   |
+| `CommandPalette.swift`                 | `Cmd+Shift+P` / `Cmd+P` command palette                                                                          |
 
 ### Ghostty Integration (`Macterm/Ghostty/`)
 
@@ -123,17 +126,17 @@ A floating `NSPanel` that reuses the same `TerminalTab` / `SplitNode` / `Pane` m
 
 ### Palette (`Macterm/Palette/`)
 
-| File                    | Purpose                                                                                |
-| ----------------------- | -------------------------------------------------------------------------------------- |
-| `PaletteEngine.swift`   | Fuzzy-scoring engine, section ordering, path-mode dispatch                             |
-| `CommandSource.swift`   | Iterates `AppCommand.allCases` to feed action commands into the palette               |
-| `ProjectSource.swift`   | Project items (open/rename/delete) for the palette                                     |
-| `DirectorySource.swift` | Filesystem path completions when the palette is in path mode                           |
+| File                    | Purpose                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `PaletteEngine.swift`   | Fuzzy-scoring engine, section ordering, path-mode dispatch              |
+| `CommandSource.swift`   | Iterates `AppCommand.allCases` to feed action commands into the palette |
+| `ProjectSource.swift`   | Project items (open/rename/delete) for the palette                      |
+| `DirectorySource.swift` | Filesystem path completions when the palette is in path mode            |
 
 ### Settings (`Macterm/Settings/`)
 
-| File                 | Purpose                                                 |
-| -------------------- | ------------------------------------------------------- |
+| File                 | Purpose                                                                      |
+| -------------------- | ---------------------------------------------------------------------------- |
 | `SettingsView.swift` | Preferences window — font, theme, window opacity/blur, hotkeys, misc toggles |
 
 ### Model (`Macterm/Model/`)
@@ -155,8 +158,8 @@ A floating `NSPanel` that reuses the same `TerminalTab` / `SplitNode` / `Pane` m
 
 ### Config (`Macterm/Config/`)
 
-| File                  | Purpose                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------- |
+| File                  | Purpose                                                                             |
+| --------------------- | ----------------------------------------------------------------------------------- |
 | `MactermConfig.swift` | Generates the two wrapper ghostty config files Macterm sandwiches around the user's |
 
 Macterm reads the user's `~/.config/ghostty/config` (path configurable in Settings → General → Ghostty Config). The user is the source of truth for every ghostty setting — themes, fonts, palettes, keybinds, etc. `MactermConfig.regenerate()` writes two private files in App Support:
@@ -172,19 +175,20 @@ Macterm-specific UI state (window opacity/blur, quick terminal, hotkeys, auto-ti
 
 Mirror the production tree. Use `@testable import Macterm` and `@MainActor` on test classes. `mise run test` runs the suite locally and on every CI push.
 
-| Path                                         | Covers                                                                              |
-| -------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `Model/SplitNode*Tests.swift`                | Tree ops, resize, geometry (`paneFrames`, `nearestPane`), rebalance                 |
-| `Model/TerminalTabTests.swift`               | Focus history, split/resize/removePane, HV-close regression                         |
-| `Model/WorkspaceTests.swift`                 | Tab lifecycle, recency, reorder                                                     |
-| `Model/PaneTests.swift`                      | `processTitle` heuristics, `destroySurface` idempotency                             |
-| `App/AppStateTests.swift`                    | Integration: splitPane/closePane/focusPaneInDirection via injected `WorkspaceStore` |
-| `App/RecencyStackTests.swift`                | Generic stack helper                                                                |
-| `App/HotkeysTests.swift`                     | `parseShortcut`, `displayString`, `HotkeyAction` sanity                             |
-| `Palette/PaletteEngineTests.swift`           | `fuzzyScore`, engine sections/sort/path-mode                                        |
-| `Persistence/WorkspaceSerializerTests.swift` | Snapshot/restore round-trip + on-disk via `WorkspaceStore`                          |
-| `Support/TreeBuilder.swift`                  | DSL: `H(pane("a"), V(pane("b"), pane("c")))` → `(SplitNode, [name: UUID])`          |
-| `Support/TreeRenderer.swift`                 | Inverse DSL for readable assertions                                                 |
+| Path                                                                                                                        | Covers                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `Model/SplitNodeTests.swift`, `SplitNodeResizeTests.swift`, `SplitNodeGeometryTests.swift`, `SplitNodeRebalanceTests.swift` | Tree ops, resize, geometry (`paneFrames`, `nearestPane`), rebalance                 |
+| `Model/TerminalTabTests.swift`                                                                                              | Focus history, split/resize/removePane, HV-close regression                         |
+| `Model/WorkspaceTests.swift`                                                                                                | Tab lifecycle, recency, reorder                                                     |
+| `Model/PaneTests.swift`                                                                                                     | `processTitle` heuristics, `destroySurface` idempotency                             |
+| `App/AppStateTests.swift`                                                                                                   | Integration: splitPane/closePane/focusPaneInDirection via injected `WorkspaceStore` |
+| `App/RecencyStackTests.swift`                                                                                               | Generic stack helper                                                                |
+| `App/HotkeysTests.swift`                                                                                                    | `parseShortcut`, `displayString`, `HotkeyAction` sanity                             |
+| `Palette/PaletteEngineTests.swift`                                                                                          | `fuzzyScore`, engine sections/sort/path-mode                                        |
+| `Palette/CommandSourceTests.swift`                                                                                          | `CommandSource` palette-item generation from `AppCommand.allCases`                  |
+| `Persistence/WorkspaceSerializerTests.swift`                                                                                | Snapshot/restore round-trip + on-disk via `WorkspaceStore`                          |
+| `Support/TreeBuilder.swift`                                                                                                 | DSL: `H(pane("a"), V(pane("b"), pane("c")))` → `(SplitNode, [name: UUID])`          |
+| `Support/TreeRenderer.swift`                                                                                                | Inverse DSL for readable assertions                                                 |
 
 **Testing conventions:**
 
