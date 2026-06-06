@@ -8,10 +8,10 @@ struct AppStateTests {
 
     /// Build an AppState with a temp-file workspace store so tests don't
     /// touch the user's real App Support data.
-    private func makeAppState() -> AppState {
+    private func makeAppState(store: WorkspaceStore? = nil) -> AppState {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("macterm-tests-\(UUID().uuidString).json")
-        return AppState(workspaceStore: WorkspaceStore(fileURL: tmp))
+        return AppState(workspaceStore: store ?? WorkspaceStore(fileURL: tmp))
     }
 
     /// Create a project + workspace inside `state` and return the project.
@@ -88,7 +88,7 @@ struct AppStateTests {
         // Replace splitRoot with a known HV shape.
         let (tree, ids) = build(H(pane("l1"), V(pane("r1"), pane("r2"))))
         tab.splitRoot = tree
-        tab.focusedPaneID = try #require(ids["l1"])
+        tab.focusedPaneID = ids["l1"]
 
         try state.closePane(#require(ids["l1"]), projectID: p.id)
 
@@ -122,7 +122,7 @@ struct AppStateTests {
         let tab = try #require(state.workspaces[p.id]?.activeTab)
         let (tree, ids) = build(H(pane("a"), pane("b")))
         tab.splitRoot = tree
-        tab.focusedPaneID = try #require(ids["a"])
+        tab.focusedPaneID = ids["a"]
         state.focusPaneInDirection(.right, projectID: p.id)
         #expect(tab.focusedPaneID == ids["b"])
     }
@@ -224,5 +224,165 @@ struct AppStateTests {
         state.requestClosePane(target, projectID: p.id)
         #expect(state.pendingClosePane == nil)
         #expect(tab.splitRoot.allPanes().count == 1)
+    }
+
+    // MARK: - applyLayout
+
+    /// Create a temp project directory and seed a workspace rooted there.
+    private func seedProjectWithDir(_ state: AppState) -> (project: Project, root: String) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macterm-layout-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let p = Project(name: "proj", path: dir.path, sortOrder: 0)
+        state.selectProject(p)
+        return (p, dir.path)
+    }
+
+    private func writeLayout(_ yaml: String, at root: String) {
+        let url = URL(fileURLWithPath: root).appendingPathComponent(".macterm/layout.yaml")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? yaml.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    @Test
+    func selecting_project_with_layout_file_auto_applies_on_first_open() throws {
+        let state = makeAppState()
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macterm-autoapply-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Layout exists *before* the project is first opened.
+        writeLayout("""
+        tabs:
+          - name: "Dev"
+            layout:
+              split: horizontal
+              first:  { run: "npm run dev" }
+              second: {}
+        """, at: dir.path)
+
+        let project = Project(name: "auto", path: dir.path, sortOrder: 0)
+        state.selectProject(project)
+
+        // Workspace built from the layout (one tab, two panes), not the default
+        // single-pane workspace. Non-destructive on first open → no prompt.
+        let ws = try #require(state.workspaces[project.id])
+        #expect(ws.tabs.count == 1)
+        #expect(ws.tabs[0].customTitle == "Dev")
+        #expect(ws.tabs[0].splitRoot.allPanes().count == 2)
+        #expect(state.pendingLayoutApply == nil)
+    }
+
+    @Test
+    func selecting_project_without_layout_file_uses_default_workspace() {
+        let state = makeAppState()
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macterm-nolayout-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let project = Project(name: "plain", path: dir.path, sortOrder: 0)
+        state.selectProject(project)
+
+        // No layout file → default single-pane workspace.
+        #expect(state.workspaces[project.id]?.tabs.count == 1)
+        #expect(state.workspaces[project.id]?.tabs[0].splitRoot.allPanes().count == 1)
+    }
+
+    @Test
+    func layout_file_wins_over_restored_snapshot() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macterm-layoutwins-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let project = Project(name: "winner", path: dir.path, sortOrder: 0)
+
+        // Pre-seed a saved snapshot for the project: a single-pane workspace.
+        let storeURL = dir.appendingPathComponent("workspaces.json")
+        let store = WorkspaceStore(fileURL: storeURL)
+        let snapshotWS = Workspace(projectID: project.id, projectPath: dir.path)
+        store.save(WorkspaceSerializer.snapshot([project.id: snapshotWS]))
+
+        // And a layout file declaring a two-pane split.
+        writeLayout("""
+        tabs:
+          - name: "Dev"
+            layout:
+              split: horizontal
+              first:  { run: "npm run dev" }
+              second: {}
+        """, at: dir.path)
+
+        // Make it the active project so restore reopens it.
+        let priorActive = Preferences.shared.activeProjectID
+        Preferences.shared.activeProjectID = project.id
+        defer { Preferences.shared.activeProjectID = priorActive }
+
+        // Restore: the layout file must win — the project's snapshot is skipped
+        // and its workspace is rebuilt from the layout (two panes, not one).
+        let state = makeAppState(store: store)
+        state.restoreSelection(projects: [project])
+
+        let ws = try #require(state.workspaces[project.id])
+        #expect(ws.tabs.count == 1)
+        #expect(ws.tabs[0].customTitle == "Dev")
+        #expect(ws.tabs[0].splitRoot.allPanes().count == 2)
+    }
+
+    @Test
+    func applyLayout_malformed_file_returns_error_and_does_not_apply() throws {
+        let state = makeAppState()
+        let (p, root) = seedProjectWithDir(state)
+        let beforeTabIDs = try #require(state.workspaces[p.id]).tabs.map(\.id)
+
+        // Invalid: a node with `first`/`second` but no `split` direction.
+        writeLayout("tabs:\n  - layout: { first: {}, second: {} }\n", at: root)
+        let error = state.applyLayout(projectID: p.id, projectName: "proj", projectRoot: root)
+
+        #expect(error != nil)
+        // Workspace is untouched — same tabs, nothing spawned or closed.
+        #expect(state.workspaces[p.id]?.tabs.map(\.id) == beforeTabIDs)
+        #expect(state.pendingLayoutApply == nil)
+    }
+
+    @Test
+    func applyLayout_missing_file_returns_error_and_does_not_apply() throws {
+        let state = makeAppState()
+        let (p, root) = seedProjectWithDir(state)
+        let beforeTabIDs = try #require(state.workspaces[p.id]).tabs.map(\.id)
+
+        let error = state.applyLayout(projectID: p.id, projectName: "proj", projectRoot: root)
+
+        #expect(error != nil)
+        #expect(state.workspaces[p.id]?.tabs.map(\.id) == beforeTabIDs)
+        #expect(state.pendingLayoutApply == nil)
+    }
+
+    @Test
+    func applyLayout_mismatched_project_name_prompts_confirmation() {
+        let state = makeAppState()
+        let (p, root) = seedProjectWithDir(state) // project name "proj"
+
+        // Non-destructive layout (matches the single live pane) but saved for a
+        // different project → should stage a confirmation rather than apply.
+        writeLayout("name: OtherApp\ntabs:\n  - layout: {}\n", at: root)
+        let error = state.applyLayout(projectID: p.id, projectName: "proj", projectRoot: root)
+
+        #expect(error == nil)
+        #expect(state.pendingLayoutApply?.mismatchedProjectName == "OtherApp")
+        #expect(state.pendingLayoutApply?.currentProjectName == "proj")
+    }
+
+    @Test
+    func applyLayout_matching_project_name_applies_without_prompt() {
+        let state = makeAppState()
+        let (p, root) = seedProjectWithDir(state) // project name "proj"
+
+        // Same project name + non-destructive → applies silently.
+        writeLayout("name: proj\ntabs:\n  - layout: {}\n", at: root)
+        let error = state.applyLayout(projectID: p.id, projectName: "proj", projectRoot: root)
+
+        #expect(error == nil)
+        #expect(state.pendingLayoutApply == nil)
     }
 }
