@@ -113,7 +113,7 @@ run = """
 
 [tasks.clean]
 description = "Clean build artifacts"
-run = "rm -rf .build build Macterm.xcodeproj"
+run = "rm -rf build Macterm.xcodeproj"
 
 [tasks.stats]
 description = "Show download statistics"

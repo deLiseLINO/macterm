@@ -1,35 +1,16 @@
 {
   "fill" : {
-    "linear-gradient" : [
-      "display-p3:0.12157,0.11373,0.18039,1.00000",
-      "display-p3:0.09804,0.09020,0.14118,1.00000"
-    ],
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
-      },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
-      }
-    }
+    "solid" : "srgb:0.09804,0.09020,0.14118,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "fill" : {
-            "solid" : "display-p3:0.79058,0.78211,0.87528,1.00000"
-          },
           "glass" : true,
-          "hidden" : false,
-          "image-name" : "glyph.svg",
-          "name" : "glyph",
-          "opacity" : 1,
+          "image-name" : "icon-raw.png",
+          "name" : "icon-raw",
           "position" : {
-            "scale" : 1.74,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
@@ -48,8 +29,9 @@
     }
   ],
   "supported-platforms" : {
-    "squares" : [
-      "macOS"
-    ]
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
   }
 }
