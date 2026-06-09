@@ -33,10 +33,6 @@
 - **Quick Terminal**: Global terminal accessible from anywhere with a hotkey.
 - **Smart Tab Naming**: Tabs name themselves after the program running in the pane, making them easily identifiable in the sidebar.
 - **Keyboard-driven Control**: Customizable keybinds for many actions including navigating projects, tabs, and panes.
-  <details>
-    <summary>Demo</summary>
-    https://github.com/user-attachments/assets/42b2dce8-1d6d-41d6-a4c8-2e0c1339810b
-  </details>
 
 ## Install
 
