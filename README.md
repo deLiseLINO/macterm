@@ -34,6 +34,10 @@
 - **Smart Tab Naming**: Tabs name themselves after the program running in the pane, making them easily identifiable in the sidebar.
 - **Keyboard-driven Control**: Customizable keybinds for many actions including navigating projects, tabs, and panes.
 
+  > Demo
+
+  https://github.com/user-attachments/assets/42b2dce8-1d6d-41d6-a4c8-2e0c1339810b
+
 ## Install
 
 ### Homebrew
@@ -53,23 +57,6 @@ Since the app isn't signed with an Apple Developer certificate, macOS will block
 ```bash
 xattr -cr /Applications/Macterm.app
 ```
-
-## Demos
-
-### Keybinds
-
-Macterm is very keyboard-oriented, so you can perform the majority of actions without lifting your hand.
-
-https://github.com/user-attachments/assets/42b2dce8-1d6d-41d6-a4c8-2e0c1339810b
-
-### Window Opacity & Blur
-
-Macterm's window appearance is highly customizable and hot-reloaded. Drop the
-opacity below 100% and choose between a classic Gaussian **Background Blur** or
-the macOS 26 **Liquid Glass** material — in two styles, frostier **Regular** or
-more transparent **Clear** — all in **Settings → General → Window**.
-
-https://github.com/user-attachments/assets/1486ed55-e653-43ce-98aa-232a61d234a7
 
 ## Configuration
 
