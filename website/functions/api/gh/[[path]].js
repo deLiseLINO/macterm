@@ -1,8 +1,6 @@
 export async function onRequest(context) {
   const { request, env, params } = context;
 
-  // Reconstruct the GitHub API URL
-  // E.g., /api/gh/repos/thdxg/macterm becomes https://api.github.com/repos/thdxg/macterm
   const targetPath = (params.path || []).join('/');
   const githubUrl = `https://api.github.com/${targetPath}`;
 
