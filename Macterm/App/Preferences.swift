@@ -71,6 +71,13 @@ final class Preferences {
         didSet { defaults.set(tabIconSymbol, forKey: Keys.tabIconSymbol) }
     }
 
+    /// Show a status badge over each tab icon: a spinner while a command is
+    /// running (replacing the icon) and a small status dot when a command has
+    /// finished and awaits attention. Off = pure icons, no status tracking.
+    var showTabStatusIndicator: Bool {
+        didSet { defaults.set(showTabStatusIndicator, forKey: Keys.showTabStatusIndicator) }
+    }
+
     var showNewProjectButton: Bool {
         didSet { defaults.set(showNewProjectButton, forKey: Keys.showNewProjectButton) }
     }
@@ -247,6 +254,7 @@ final class Preferences {
         activeProjectID = (defaults.string(forKey: Keys.activeProjectID)).flatMap(UUID.init)
         projectIconSymbol = defaults.string(forKey: Keys.projectIconSymbol) ?? "folder"
         tabIconSymbol = defaults.string(forKey: Keys.tabIconSymbol) ?? "terminal"
+        showTabStatusIndicator = defaults.object(forKey: Keys.showTabStatusIndicator) as? Bool ?? false
         showNewProjectButton = defaults.object(forKey: Keys.showNewProjectButton) as? Bool ?? true
         tabSwitcherVisibility = (defaults.string(forKey: Keys.tabSwitcherVisibility))
             .flatMap(TabSwitcherVisibility.init(rawValue:)) ?? .whenMultiple
@@ -271,12 +279,6 @@ final class Preferences {
             defaults.removeObject(forKey: "macterm.input.optionAsAlt")
             defaults.set(true, forKey: Keys.migrationV2GhosttyConfigOwned)
         }
-        // The original "number" sentinel was replaced by per-variant tokens.
-        // Map any user who was on it to the filled-circle variant so their
-        // sidebar doesn't silently lose its number icons on upgrade.
-        for key in [Keys.projectIconSymbol, Keys.tabIconSymbol] where defaults.string(forKey: key) == "number" {
-            defaults.set(numberIconCircleFill, forKey: key)
-        }
     }
 
     // MARK: - UserDefaults keys
@@ -295,6 +297,7 @@ final class Preferences {
         static let activeProjectID = "macterm.activeProjectID"
         static let projectIconSymbol = "macterm.sidebar.projectIcon"
         static let tabIconSymbol = "macterm.sidebar.tabIcon"
+        static let showTabStatusIndicator = "macterm.sidebar.showTabStatusIndicator"
         static let showNewProjectButton = "macterm.sidebar.showNewProjectButton"
         static let tabSwitcherVisibility = "macterm.toolbar.tabSwitcherVisibility"
         static let migrationV2GhosttyConfigOwned = "macterm.migration.v2_ghostty_config_owned"

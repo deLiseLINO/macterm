@@ -8,6 +8,7 @@ struct TerminalPane: View {
     let isZoomed: Bool
     let onFocus: () -> Void
     let onProcessExit: () -> Void
+    let onCommandFinished: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
     let onZoomRequest: () -> Void
 
@@ -37,6 +38,7 @@ struct TerminalPane: View {
                 isZoomed: isZoomed,
                 onFocus: onFocus,
                 onProcessExit: onProcessExit,
+                onCommandFinished: onCommandFinished,
                 onSplitRequest: onSplitRequest,
                 onZoomRequest: onZoomRequest
             )
@@ -54,6 +56,7 @@ private struct TerminalSurface: NSViewRepresentable {
     let isZoomed: Bool
     let onFocus: () -> Void
     let onProcessExit: () -> Void
+    let onCommandFinished: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
     let onZoomRequest: () -> Void
 
@@ -122,6 +125,9 @@ private struct TerminalSurface: NSViewRepresentable {
 
     private func configure(_ view: GhosttyTerminalNSView) {
         view.onFocus = onFocus
+        view.onInteraction = { [weak pane] in
+            pane?.recordUserInteraction()
+        }
         view.onProcessExit = onProcessExit
         view.onSplitRequest = onSplitRequest
         view.onZoomRequest = onZoomRequest
@@ -176,8 +182,31 @@ private struct TerminalSurface: NSViewRepresentable {
             )
             UNUserNotificationCenter.current().add(request)
         }
+        view.onProgressStarted = { [weak pane] in
+            guard Preferences.shared.showTabStatusIndicator else { return }
+            pane?.refreshForegroundProcess()
+            pane?.markCommandRunning()
+        }
+        view.onProgressFinished = { [weak pane] in
+            guard let pane,
+                  Preferences.shared.showTabStatusIndicator,
+                  pane.executionState == .running
+            else { return }
+            pane.refreshForegroundProcess()
+            pane.markProgressFinished()
+            onCommandFinished()
+        }
+        view.onTerminalActivity = { [weak pane] in
+            guard let pane, Preferences.shared.showTabStatusIndicator else { return }
+            pane.refreshForegroundProcess()
+            pane.markTerminalActivity()
+        }
         view.onCommandFinished = { [weak pane, weak view] exitCode, durationNs in
             guard let pane else { return }
+            if Preferences.shared.showTabStatusIndicator {
+                pane.markCommandFinished()
+                onCommandFinished()
+            }
             guard !(NSApp.isActive && view?.isFocused == true) else { return }
             let durationSec = Double(durationNs) / 1_000_000_000
             let body = if exitCode < 0 {

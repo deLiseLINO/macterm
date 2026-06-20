@@ -175,6 +175,8 @@ private struct AppearanceSettings: View {
     private var projectIconSymbol = "folder"
     @AppStorage(Preferences.Keys.tabIconSymbol)
     private var tabIconSymbol = "terminal"
+    @AppStorage(Preferences.Keys.showTabStatusIndicator)
+    private var showTabStatusIndicator = false
     @AppStorage(Preferences.Keys.showNewProjectButton)
     private var showNewProjectButton = true
     @AppStorage(Preferences.Keys.tabSwitcherVisibility)
@@ -247,6 +249,17 @@ private struct AppearanceSettings: View {
                     }
                 }
                 .onChange(of: projectIconSymbol) { _, v in Preferences.shared.projectIconSymbol = v }
+
+                Toggle("Show tab status indicator", isOn: $showTabStatusIndicator)
+                    .onChange(of: showTabStatusIndicator) { _, v in
+                        Preferences.shared.showTabStatusIndicator = v
+                    }
+                Text(
+                    "Replaces a tab’s icon with a spinner while a command is running, " +
+                        "and adds a small checkmark badge when it finishes and awaits attention."
+                )
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
 
                 Picker("Tab icon", selection: $tabIconSymbol) {
                     ForEach(Preferences.tabIconChoices, id: \.self) { name in

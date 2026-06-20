@@ -66,7 +66,7 @@ struct PaneTitleTests {
     func title_expires_when_foreground_returns_to_shell() {
         let pane = makePane()
         pane.receiveReportedTitle("session", programPID: 42)
-        pane.applyForegroundRefresh(name: "nu", foregroundPID: 7)
+        pane.applyForegroundRefresh(name: "nu", foregroundPID: 7, foregroundIsShell: true)
         #expect(pane.programTitle == nil)
         // Display falls back to the process name.
         #expect(pane.displayTitle == "nu")

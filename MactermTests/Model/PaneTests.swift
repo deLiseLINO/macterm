@@ -45,6 +45,274 @@ struct PaneTests {
     }
 
     @Test
+    func executionState_defaults_to_idle() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func applyForegroundRefresh_skipsExecutionState_whenIndicatorDisabled() {
+        // Mirrors `refreshForegroundProcess(trackExecution: false)`: a non-shell
+        // foreground process updates the name but must not flip executionState
+        // when the status indicator is off, so icon-mode users don't pay for
+        // tracker mutations (or the shell/raw syscalls the caller skipped).
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.applyForegroundRefresh(
+            name: "sleep",
+            foregroundPID: 42,
+            foregroundIsShell: false,
+            terminalInputIsRaw: false,
+            applyExecutionState: false
+        )
+        #expect(p.foregroundProcessName == "sleep")
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func initialForegroundBeforeUserInteraction_staysIdle() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        p.markTerminalActivity()
+        p.settleTerminalActivityIfQuiet(now: Date(timeIntervalSince1970: 3), quietInterval: 3)
+        #expect(p.foregroundProcessName == "sleep")
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func progressBeforeUserInteraction_staysIdle() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.markCommandRunning()
+        p.markProgressFinished()
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func layoutCommand_tracksInitialForegroundBeforeUserInteraction() {
+        let p = Pane(projectPath: "/", projectID: UUID(), command: "npm test")
+        p.applyForegroundRefresh(name: "npm", foregroundPID: 42)
+        #expect(p.executionState == .running)
+    }
+
+    @Test
+    func executionState_marks_running_then_done_then_idle_on_acknowledge() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.markCommandRunning()
+        #expect(p.executionState == .running)
+        p.markCommandFinished()
+        #expect(p.executionState == .done)
+        p.acknowledgeCommandCompletion()
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func progressFinishedFromIdle_staysIdle() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.markProgressFinished()
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func progressStartAndFinish_tracksRunningThenDone() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.markCommandRunning()
+        #expect(p.executionState == .running)
+        p.markProgressFinished()
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func progressRunning_isNotCompletedByForegroundOrOutputActivity() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.markCommandRunning()
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        p.markTerminalActivity(at: Date(timeIntervalSince1970: 100))
+        p.settleTerminalActivityIfQuiet(now: Date(timeIntervalSince1970: 200), quietInterval: 3)
+        #expect(p.executionState == .running)
+        p.markProgressFinished()
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func progressFinished_settlesCurrentForegroundProcess() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        p.markCommandRunning()
+        #expect(p.executionState == .running)
+        p.markProgressFinished()
+        #expect(p.executionState == .done)
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func progressFinished_settlesNextForegroundProcessWhenNoneWasCaptured() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.markCommandRunning()
+        p.markProgressFinished()
+        #expect(p.executionState == .done)
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func progressFinished_ignoresOutputFromSettledForegroundProcess() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        p.markCommandRunning()
+        p.markProgressFinished()
+        p.markTerminalActivity()
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func progressFinished_allowsForegroundRestartAfterProcessChanges() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        p.markCommandRunning()
+        p.markProgressFinished()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 43)
+        #expect(p.executionState == .running)
+    }
+
+    @Test
+    func commandFinishedFromIdle_staysIdle() {
+        // Shell integration emits OSC 133;D on every precmd, including empty
+        // commands (Enter, Ctrl-C, Ctrl-L on an idle prompt). A COMMAND_FINISHED
+        // with no preceding running state must not flip the pane to `.done`, or
+        // clearing an idle terminal would persist a spurious checkmark.
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.markCommandFinished()
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func commandFinishedFromRunning_marksDone() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        #expect(p.executionState == .running)
+        p.markCommandFinished()
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func applyForegroundRefresh_marks_nonShell_process_as_running() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        #expect(p.foregroundProcessName == "sleep")
+        #expect(p.executionState == .running)
+    }
+
+    @Test
+    func applyForegroundRefresh_marks_done_when_foreground_returns_to_shell() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        p.applyForegroundRefresh(name: shellName(), foregroundPID: 43, foregroundIsShell: true)
+        #expect(p.foregroundProcessName == shellName())
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func applyForegroundRefresh_marks_longLivedApps_as_running_without_exclusions_when_terminalIsCanonical() {
+        for process in ["claude", "pi", "node", "ssh"] {
+            let p = Pane(projectPath: "/", projectID: UUID())
+            p.recordUserInteraction()
+            p.applyForegroundRefresh(name: process, foregroundPID: 42)
+            #expect(p.foregroundProcessName == process)
+            #expect(p.executionState == .running)
+        }
+    }
+
+    @Test
+    func rawForegroundProcess_doesNotStartFromForegroundAlone() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42, terminalInputIsRaw: true)
+        #expect(p.foregroundProcessName == "node")
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func rawForegroundProcess_settlesExistingForegroundOnlyRun() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        #expect(p.executionState == .running)
+
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42, terminalInputIsRaw: true)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func rawForegroundProcess_usesOutputActivityUntilQuiet() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        let start = Date(timeIntervalSince1970: 100)
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42, terminalInputIsRaw: true)
+        p.markTerminalActivity(at: start)
+        #expect(p.executionState == .running)
+
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42, terminalInputIsRaw: true)
+        #expect(p.executionState == .running)
+        p.settleTerminalActivityIfQuiet(now: start.addingTimeInterval(3), quietInterval: 3)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func terminalActivityWithoutUserInteraction_staysIdle() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        p.markTerminalActivity()
+        #expect(p.executionState == .idle)
+    }
+
+    @Test
+    func terminalActivityAfterUserInteraction_marksRunningUntilQuiet() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        let start = Date(timeIntervalSince1970: 100)
+        p.recordUserInteraction()
+        p.markTerminalActivity(at: start)
+        #expect(p.executionState == .running)
+        p.settleTerminalActivityIfQuiet(now: start.addingTimeInterval(2), quietInterval: 3)
+        #expect(p.executionState == .running)
+        p.settleTerminalActivityIfQuiet(now: start.addingTimeInterval(3), quietInterval: 3)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func foregroundProcessWithOutput_settlesAfterQuiet_withoutRestartingSameProcess() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        let start = Date(timeIntervalSince1970: 100)
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        p.markTerminalActivity(at: start)
+        #expect(p.executionState == .running)
+        p.settleTerminalActivityIfQuiet(now: start.addingTimeInterval(3), quietInterval: 3)
+        #expect(p.executionState == .done)
+        p.applyForegroundRefresh(name: "node", foregroundPID: 42)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
+    func silentForegroundProcess_doesNotSettleUntilItReturnsToShell() {
+        let p = Pane(projectPath: "/", projectID: UUID())
+        let start = Date(timeIntervalSince1970: 100)
+        p.recordUserInteraction()
+        p.applyForegroundRefresh(name: "sleep", foregroundPID: 42)
+        p.settleTerminalActivityIfQuiet(now: start.addingTimeInterval(30), quietInterval: 3)
+        #expect(p.executionState == .running)
+        p.applyForegroundRefresh(name: shellName(), foregroundPID: 43, foregroundIsShell: true)
+        #expect(p.executionState == .done)
+    }
+
+    @Test
     func init_stores_project_path() {
         let p = Pane(projectPath: "/tmp/foo", projectID: UUID())
         #expect(p.projectPath == "/tmp/foo")

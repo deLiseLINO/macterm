@@ -51,7 +51,25 @@ final class GhosttyTerminalNSView: NSView {
         onTitleChange?(title)
     }
 
+    func surfaceDidReportProgress(running: Bool) {
+        if running {
+            onProgressStarted?()
+        } else {
+            onProgressFinished?()
+        }
+    }
+
+    func surfaceDidUpdateScrollbar(total: UInt64, offset: UInt64, len: UInt64) {
+        let snapshot = ScrollbarSnapshot(total: total, offset: offset, len: len)
+        if let lastScrollbarSnapshot, total > lastScrollbarSnapshot.total {
+            onTerminalActivity?()
+        }
+        lastScrollbarSnapshot = snapshot
+        onScrollbarUpdate?(total, offset, len)
+    }
+
     var onFocus: (() -> Void)?
+    var onInteraction: (() -> Void)?
     var onProcessExit: (() -> Void)?
     var onSplitRequest: ((SplitDirection, SplitPosition) -> Void)?
     var onZoomRequest: (() -> Void)?
@@ -62,6 +80,9 @@ final class GhosttyTerminalNSView: NSView {
     var onSearchSelected: ((Int?) -> Void)?
     var onDesktopNotification: ((String, String) -> Void)?
     var onCommandFinished: ((Int16, UInt64) -> Void)?
+    var onProgressStarted: (() -> Void)?
+    var onProgressFinished: (() -> Void)?
+    var onTerminalActivity: (() -> Void)?
     /// libghostty pushes scrollback geometry (all values in rows) whenever the
     /// viewport, scrollback size, or visible row count changes.
     /// `(total, offset, len)`: total rows including scrollback, the first
@@ -69,6 +90,14 @@ final class GhosttyTerminalNSView: NSView {
     var onScrollbarUpdate: ((UInt64, UInt64, UInt64) -> Void)?
     var isFocused: Bool = false
     var currentPwd: String?
+
+    private var lastScrollbarSnapshot: ScrollbarSnapshot?
+
+    private struct ScrollbarSnapshot: Equatable {
+        let total: UInt64
+        let offset: UInt64
+        let len: UInt64
+    }
 
     private var _markedRange: NSRange = .init(location: NSNotFound, length: 0)
     private var _selectedRange: NSRange = .init(location: NSNotFound, length: 0)
@@ -197,6 +226,18 @@ final class GhosttyTerminalNSView: NSView {
         guard let surface else { return nil }
         let pid = ghostty_surface_foreground_pid(surface)
         return pid != 0 ? pid_t(pid) : nil
+    }
+
+    /// The slave tty path for this surface's pty, used by `ProcessInspector` to
+    /// read terminal input mode (canonical shell command vs raw/cbreak TUI).
+    var ttyName: String? {
+        guard let surface else { return nil }
+        let tty = ghostty_surface_tty_name(surface)
+        defer { ghostty_string_free(tty) }
+        guard let ptr = tty.ptr, tty.len > 0 else { return nil }
+        let bytes = UnsafeBufferPointer(start: ptr, count: Int(tty.len)).map { UInt8(bitPattern: $0) }
+        guard let name = String(bytes: bytes, encoding: .utf8), !name.isEmpty else { return nil }
+        return name
     }
 
     deinit {
@@ -373,6 +414,7 @@ final class GhosttyTerminalNSView: NSView {
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
+        onInteraction?()
         guard let surface else { super.keyDown(with: event)
             return
         }
@@ -467,6 +509,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func flagsChanged(with event: NSEvent) {
+        onInteraction?()
         guard let surface else { return }
         var ke = buildKeyEvent(from: event, action: isFlagPress(event) ? GHOSTTY_ACTION_PRESS : GHOSTTY_ACTION_RELEASE)
         ke.text = nil
@@ -475,6 +518,7 @@ final class GhosttyTerminalNSView: NSView {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if isAppShortcut(event) { return false }
+        onInteraction?()
         guard window?.firstResponder === self || window?.firstResponder === inputContext else { return false }
         guard event.type == .keyDown, let surface else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -496,6 +540,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        onInteraction?()
         guard let surface else { return }
         window?.makeFirstResponder(self)
         ghostty_surface_set_focus(surface, true)
@@ -531,6 +576,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
+        onInteraction?()
         guard let surface else { return }
         let pt = mousePoint(from: event)
         ghostty_surface_mouse_pos(surface, pt.x, pt.y, mods(event))
@@ -549,6 +595,7 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        onInteraction?()
         guard let surface else { return }
         var scrollMods: ghostty_input_scroll_mods_t = 0
         if event.hasPreciseScrollingDeltas { scrollMods |= 1 }
@@ -595,6 +642,7 @@ final class GhosttyTerminalNSView: NSView {
 
     @objc
     private func handlePaste() {
+        onInteraction?()
         guard let text = GhosttyCallbacks.readPasteboardText() else { return }
         window?.makeFirstResponder(self)
         insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
@@ -751,7 +799,8 @@ final class GhosttyTerminalNSView: NSView {
     }
 
     private func unshiftedCodepoint(from event: NSEvent) -> UInt32 {
-        guard let chars = event.characters(byApplyingModifiers: []),
+        guard event.type == .keyDown || event.type == .keyUp,
+              let chars = event.characters(byApplyingModifiers: []),
               let scalar = chars.unicodeScalars.first
         else { return 0 }
         return scalar.value

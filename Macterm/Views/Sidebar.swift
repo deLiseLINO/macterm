@@ -31,6 +31,7 @@ struct SidebarContent: View {
                         SidebarTabRow(
                             tab: tab,
                             index: tabIndex + 1,
+                            isActive: ws?.activeTabID == tab.id && appState.activeProjectID == project.id,
                             moveTargets: projectStore.projects.filter { $0.id != project.id },
                             onClose: { appState.closeTab(tab.id, projectID: project.id) },
                             onRename: { newName in
@@ -230,6 +231,7 @@ private struct SidebarProjectRow: View {
 private struct SidebarTabRow: View {
     let tab: TerminalTab
     let index: Int
+    let isActive: Bool
     let moveTargets: [Project]
     let onClose: () -> Void
     let onRename: (String) -> Void
@@ -238,6 +240,8 @@ private struct SidebarTabRow: View {
     private var appState
     @AppStorage(Preferences.Keys.tabIconSymbol)
     private var tabIconSymbol = "terminal"
+    @AppStorage(Preferences.Keys.showTabStatusIndicator)
+    private var showTabStatusIndicator = false
     @State
     private var isRenaming = false
     @State
@@ -265,14 +269,24 @@ private struct SidebarTabRow: View {
     var body: some View {
         Group {
             if tabIconSymbol == Preferences.noIcon {
-                titleContent
-                    .padding(.leading, 6)
+                Label {
+                    titleContent
+                } icon: {
+                    if showTabStatusIndicator {
+                        TabStatusGlyph(state: displayState, symbol: tabIconSymbol, index: index)
+                    }
+                }
+                .labelStyle(.titleAndIcon)
             } else {
                 Label {
                     titleContent
                 } icon: {
-                    SidebarRowIcon(symbol: tabIconSymbol, index: index)
-                        .foregroundStyle(.secondary)
+                    if showTabStatusIndicator {
+                        TabStatusGlyph(state: displayState, symbol: tabIconSymbol, index: index)
+                    } else {
+                        SidebarRowIcon(symbol: tabIconSymbol, index: index)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -310,9 +324,69 @@ private struct SidebarTabRow: View {
         appState.restoreFocusToActivePane()
     }
 
+    private var displayState: TerminalExecutionState {
+        if tab.executionState == .running { return .running }
+        // The tab the user is already looking at never needs an attention
+        // indicator; a background tab's `done` checkmark is shown until it's
+        // acknowledged. Visiting the tab clears all of its panes via the poll's
+        // `acknowledgeFinishedCommandIfActive` (which acknowledges the whole
+        // active tab, not just the focused pane, so the persisted state matches
+        // what's displayed).
+        return isActive ? .idle : tab.executionState
+    }
+
     private func cancelRename() {
         isRenaming = false
         appState.restoreFocusToActivePane()
+    }
+}
+
+/// The tab icon with a coexisting status indicator (the maintainer's
+/// suggestion): the user's chosen icon stays put, and status is additive.
+///
+/// - `running`: a small spinner replaces the icon (temporary prominence,
+///   Xcode-build-navigator style).
+/// - `done` (needs attention): the icon with a small solid status dot in the
+///   bottom-trailing corner — like the Messages/FaceTime "available" dot. A
+///   dot reads as "done/positive" without competing with the icon's identity,
+///   and it avoids the heavy, off-platform look of a checkmark glyph badge.
+/// - `idle`: the icon as-is.
+private struct TabStatusGlyph: View {
+    let state: TerminalExecutionState
+    let symbol: String
+    let index: Int
+
+    var body: some View {
+        switch state {
+        case .running:
+            ProgressView()
+                .controlSize(.small)
+                .tint(.secondary)
+                .help("Running")
+                .frame(width: 16, height: 16)
+        case .done:
+            SidebarRowIcon(symbol: symbol, index: index)
+                .foregroundStyle(.secondary)
+                .overlay(alignment: .bottomTrailing) {
+                    // Opaque (not translucent) so it reads clearly over the
+                    // icon and the sidebar background. Nested in a background
+                    // ring so it stays legible over any icon color.
+                    Circle()
+                        .fill(.background)
+                        .frame(width: 7, height: 7)
+                        .overlay(
+                            Circle()
+                                .fill(.green)
+                                .frame(width: 5, height: 5)
+                        )
+                        .offset(x: 2.5, y: 2.5)
+                }
+                .help("Done")
+        case .idle:
+            SidebarRowIcon(symbol: symbol, index: index)
+                .foregroundStyle(.secondary)
+                .help("Idle")
+        }
     }
 }
 
