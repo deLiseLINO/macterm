@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Macterm 1.20.0 release notes</title>
+  <style>
+    body { font: 13px -apple-system, system-ui, sans-serif; color: #1d1d1f; padding: 16px; margin: 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f5f5f7; background: transparent; } a { color: #6cb4ff; } }
+    h1, h2, h3 { margin-top: 0.6em; margin-bottom: 0.3em; }
+    h1 { font-size: 1.3em; } h2 { font-size: 1.15em; } h3 { font-size: 1em; }
+    p, ul, ol { margin: 0.4em 0; }
+    ul, ol { padding-left: 1.4em; }
+    code { background: rgba(127, 127, 127, 0.15); padding: 0 4px; border-radius: 3px; font: 12px ui-monospace, monospace; }
+    pre { background: rgba(127, 127, 127, 0.12); padding: 8px; border-radius: 4px; overflow-x: auto; }
+    pre code { background: transparent; padding: 0; }
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<h2>Macterm 1.20.0</h2>
+<h3>🌐 Remote projects</h3>
+<p>Open a project that lives on another machine over SSH. Each pane runs a persistent [<a href="https://zmx.sh/" rel="nofollow">zmx</a>](<a href="https://zmx.sh" rel="nofollow">https://zmx.sh</a>) session <strong>on the host</strong>, so your shells, running processes, and scrollback live on the server — not your Mac. Quit Macterm and the sessions keep running; relaunch and every pane reattaches. They even survive a local reboot or a dropped connection.</p>
+<p>Add one from <strong>Sidebar → + → Remote Machine…</strong>, or just type an <code class="notranslate">ssh</code>-style path like <code class="notranslate">devbox:~/dev/api</code> into the command palette. Connection settings come from your <code class="notranslate">~/.ssh/config</code>; authentication (password, key, or 2FA) happens right in the pane. → [<a href="https://thdxg.github.io/macterm/docs/remote-projects" rel="nofollow">Docs</a>](<a href="https://thdxg.github.io/macterm/docs/remote-projects" rel="nofollow">https://thdxg.github.io/macterm/docs/remote-projects</a>)</p>
+<h3>⌨️ The <code class="notranslate">macterm</code> CLI</h3>
+<p>A bundled command-line tool to drive the running app — projects, tabs, panes, and sessions — over a local socket, so scripts and AI agents can orchestrate your terminal. It's on <code class="notranslate">PATH</code> inside every Macterm pane automatically.</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate">macterm tab new --run <span class="pl-s"><span class="pl-pds">"</span>npm run dev<span class="pl-pds">"</span></span>
+macterm grid 2x2 --run <span class="pl-s"><span class="pl-pds">"</span>tail -f log/dev.log<span class="pl-pds">"</span></span>
+macterm pane run -- git pull</pre></div>
+<p>Every command supports <code class="notranslate">--json</code> for scripting. → [<a href="https://macterm.thdxg.dev/macterm/docs/cli" rel="nofollow">Docs</a>](<a href="https://thdxg.github.io/macterm/docs/cli" rel="nofollow">https://thdxg.github.io/macterm/docs/cli</a>)</p>
+<h3>📁 Centralized project layouts</h3>
+<p>Declarative project layouts now live in <code class="notranslate">~/.config/macterm/projects/</code>, one YAML file per project — matched by path, so they survive across git worktrees and sync cleanly in your dotfiles. The old in-repo <code class="notranslate">.macterm/layout.yaml</code> still works but is deprecated. → [<a href="https://macterm.thdxg.dev/docs/declarative-layouts" rel="nofollow">Docs</a>](<a href="https://macterm.thdxg.dev/docs/declarative-layouts" rel="nofollow">https://macterm.thdxg.dev/docs/declarative-layouts</a>)</p>
+<h3>Also in this release</h3>
+<ul>
+<li>Redesigned website and documentation.</li>
+</ul>
+<p><strong>Full Changelog:</strong> <a class="commit-link" href="https://github.com/thdxg/macterm/compare/v1.19.0...v1.20.0">thdxg/macterm@<tt>v1.19.0...v1.20.0</tt></a></p>
+</body>
+</html>
