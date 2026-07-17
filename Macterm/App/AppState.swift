@@ -449,7 +449,8 @@ final class AppState {
                 TerminalCommandCompletionUserInfoKey.tabID: tabID.uuidString,
                 TerminalCommandCompletionUserInfoKey.paneID: pane.id.uuidString,
                 TerminalCommandCompletionUserInfoKey.label: label.isEmpty ? "Terminal command" : label,
-                TerminalCommandCompletionUserInfoKey.outcome: "success",
+                TerminalCommandCompletionUserInfoKey.outcome:
+                    pane.lastCommandOutcome?.rawValue ?? "success",
                 TerminalCommandCompletionUserInfoKey.isQuickTerminal:
                     pane.projectID == QuickTerminalService.ephemeralProjectID,
                 TerminalCommandCompletionUserInfoKey.completionTimestamp:
