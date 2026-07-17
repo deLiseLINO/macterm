@@ -40,14 +40,11 @@ struct CommandPaletteOverlay: View {
 }
 
 private extension View {
-    /// Liquid glass on macOS 26; the closest native material on older systems.
+    /// Fallback material on the current deployment target; liquid glass is
+    /// disabled in this build because the CI SDK does not expose it.
     @ViewBuilder
     func paletteBackground(cornerRadius: CGFloat) -> some View {
-        if #available(macOS 26.0, *) {
-            glassEffect(in: .rect(cornerRadius: cornerRadius))
-        } else {
-            background(.regularMaterial, in: .rect(cornerRadius: cornerRadius))
-        }
+        background(.regularMaterial, in: .rect(cornerRadius: cornerRadius))
     }
 }
 
