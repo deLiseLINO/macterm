@@ -253,6 +253,134 @@ struct HotkeysTests {
         #expect(!shortcut.matches(wrongCharEvent))
     }
 
+    // MARK: - HotkeyShortcut.matches (non-ASCII layout fallback)
+
+    @Test
+    func matches_cmd_v_on_cyrillic_layout_by_keyCode() throws {
+        let cyrillicV = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "м",
+            charactersIgnoringModifiers: "м",
+            isARepeat: false,
+            keyCode: 9 // physical V
+        ))
+        let paste = try #require(HotkeyRegistry.parseShortcut("cmd+v"))
+        #expect(paste.matches(cyrillicV))
+    }
+
+    @Test
+    func matches_ctrl_c_on_cyrillic_layout_by_keyCode() throws {
+        let cyrillicC = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.control],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "с",
+            charactersIgnoringModifiers: "с",
+            isARepeat: false,
+            keyCode: 8 // physical C
+        ))
+        let copy = try #require(HotkeyRegistry.parseShortcut("ctrl+c"))
+        #expect(copy.matches(cyrillicC))
+    }
+
+    @Test
+    func matches_cmd_t_on_cyrillic_layout_by_keyCode() throws {
+        let cyrillicT = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "е",
+            charactersIgnoringModifiers: "е",
+            isARepeat: false,
+            keyCode: 17 // physical T
+        ))
+        let newTab = try #require(HotkeyRegistry.parseShortcut("cmd+t"))
+        #expect(newTab.matches(cyrillicT))
+    }
+
+    @Test
+    func matches_cmd_w_on_cyrillic_layout_by_keyCode() throws {
+        let cyrillicW = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "ц",
+            charactersIgnoringModifiers: "ц",
+            isARepeat: false,
+            keyCode: 13 // physical W
+        ))
+        let close = try #require(HotkeyRegistry.parseShortcut("cmd+w"))
+        #expect(close.matches(cyrillicW))
+    }
+
+    @Test
+    func matches_cmd_shift_d_on_cyrillic_layout_by_keyCode() throws {
+        let cyrillicD = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command, .shift],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "в",
+            charactersIgnoringModifiers: "в",
+            isARepeat: false,
+            keyCode: 2 // physical D
+        ))
+        let splitDown = try #require(HotkeyRegistry.parseShortcut("cmd+shift+d"))
+        #expect(splitDown.matches(cyrillicD))
+    }
+
+    @Test
+    func matches_ascii_character_before_physical_keyCode() throws {
+        let logicalD = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "d",
+            charactersIgnoringModifiers: "d",
+            isARepeat: false,
+            keyCode: 13 // physical W
+        ))
+        let splitRight = try #require(HotkeyRegistry.parseShortcut("cmd+d"))
+        #expect(splitRight.matches(logicalD))
+    }
+
+    @Test
+    func rejects_ascii_character_mismatch_even_when_keyCode_matches() throws {
+        let logicalW = try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "w",
+            charactersIgnoringModifiers: "w",
+            isARepeat: false,
+            keyCode: 2 // physical D
+        ))
+        let splitRight = try #require(HotkeyRegistry.parseShortcut("cmd+d"))
+        #expect(!splitRight.matches(logicalW))
+    }
+
     @Test
     func matches_special_keys_by_token() throws {
         let shortcut = try #require(HotkeyRegistry.parseShortcut("ctrl+tab"))
