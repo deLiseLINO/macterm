@@ -165,11 +165,10 @@ final class AppState {
     private var pollEventObservers: [Any] = []
 
     /// Every block-based observer token paired with the center it was added to,
-    /// so `deinit` can remove them from the correct center. `nonisolated(unsafe)`
-    /// so the nonisolated deinit can read it — the object is being destroyed, so
-    /// there is no concurrent access. Tokens are `NSObjectProtocol` (what
-    /// `addObserver(forName:…)` returns).
-    nonisolated(unsafe) private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    /// so `deinit` can remove them from the correct center. `AppState` is
+    /// `@MainActor`, so the deinit runs on the same actor and the array is
+    /// accessed without an isolation mismatch.
+    private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
 
     /// Injectable for tests (`PollCadence.Context` inputs). `NSApp` is nil
     /// while the SwiftUI `App` struct (and thus AppState) is constructed —
@@ -574,7 +573,7 @@ final class AppState {
             .flatMap(\.tabs)
             .flatMap { $0.splitRoot.allPanes() })
         let known = Set(allRestoredPanes.map(\.sessionName))
-        await agentResumeCoordinator.resumeRestoredAgents(
+        agentResumeCoordinator.resumeRestoredAgents(
             allRestoredPanes,
             preRestoreLiveSessionNames: preRestoreLiveSessionNames
         )
