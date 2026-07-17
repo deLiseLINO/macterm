@@ -82,6 +82,10 @@ struct PaneSnapshot: Codable {
     /// did NOT survive (reboot, external kill) respawns where the user was.
     /// A surviving session reattaches with its own live cwd regardless.
     var workingDirectory: String?
+    /// Optional provider-native agent identity. The value is typed and contains
+    /// no executable command, credentials, or environment dictionary.
+    var agentSession: AgentSessionMetadata?
+
     // No `title`: the tab name is derived live from the pane's foreground
     // process, so there's nothing per-pane to persist. (An older snapshot's
     // `title` key is harmlessly ignored on decode.)
@@ -95,7 +99,8 @@ struct PaneSnapshot: Codable {
         needsAttention: Bool? = nil,
         sessionID: UUID? = nil,
         sessionName: String? = nil,
-        workingDirectory: String? = nil
+        workingDirectory: String? = nil,
+        agentSession: AgentSessionMetadata? = nil
     ) {
         self.id = id
         self.projectPath = projectPath
@@ -103,6 +108,7 @@ struct PaneSnapshot: Codable {
         self.sessionID = sessionID
         self.sessionName = sessionName
         self.workingDirectory = workingDirectory
+        self.agentSession = agentSession
     }
 }
 
@@ -295,7 +301,8 @@ enum WorkspaceSerializer {
                 needsAttention: needsAttention,
                 sessionID: p.sessionID,
                 sessionName: p.sessionName,
-                workingDirectory: liveCwd
+                workingDirectory: liveCwd,
+                agentSession: p.agentSession
             ))
         case let .split(b):
             return .split(SplitBranchSnapshot(
@@ -325,7 +332,8 @@ enum WorkspaceSerializer {
                 projectPath: p.workingDirectory ?? p.projectPath,
                 projectID: projectID,
                 sessionID: p.sessionID ?? UUID(),
-                sessionName: p.sessionName
+                sessionName: p.sessionName,
+                agentSession: p.agentSession
             )
             if p.needsAttention == true {
                 pane.restoreNeedsAttention()

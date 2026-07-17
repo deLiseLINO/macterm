@@ -172,6 +172,14 @@ extension ZmxClient {
         sessionListSnapshot: { (entries: [], leaders: [:]) }
     )
 
+    /// One-shot, authoritative projection of the names returned by `zmx ls`.
+    /// A nil result means the listing failed and the live-session state is
+    /// unknown; callers must fail closed rather than treating it as empty.
+    func liveSessionNames() async -> Set<String>? {
+        guard let snapshot = await sessionListSnapshot() else { return nil }
+        return Set(snapshot.entries.map(\.name))
+    }
+
     private enum ProbeOutcome: Equatable { case allow, bypass }
 
     /// Kill every `macterm-*` session the live daemon hosts that no live/persisted

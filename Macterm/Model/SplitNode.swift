@@ -303,6 +303,10 @@ final class Pane: Identifiable {
     let shell: String?
     /// Extra environment variables for the spawned shell. nil/empty → none.
     let env: [String: String]?
+    /// Optional native agent identity used to resume a provider session after a
+    /// restored zmx session is known to be absent.
+    var agentSession: AgentSessionMetadata?
+
     /// The basename of the pane's live foreground process — a running command
     /// (`hx`, `btop`), or the pane's shell when idle at a prompt (so a nested
     /// `zsh` launched inside `nu` shows `zsh`). nil only before the surface
@@ -698,7 +702,8 @@ final class Pane: Identifiable {
         sessionName persistedSessionName: String? = nil,
         command: String? = nil,
         shell: String? = nil,
-        env: [String: String]? = nil
+        env: [String: String]? = nil,
+        agentSession: AgentSessionMetadata? = nil
     ) {
         self.projectPath = projectPath
         self.projectID = projectID
@@ -729,6 +734,7 @@ final class Pane: Identifiable {
         self.command = command
         self.shell = shell
         self.env = env
+        self.agentSession = agentSession
         executionTracker = TerminalExecutionTracker(hasUserInteraction: command != nil)
     }
 

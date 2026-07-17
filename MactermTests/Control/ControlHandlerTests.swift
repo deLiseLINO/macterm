@@ -700,6 +700,56 @@ struct ControlHandlerTests {
         #expect(applied.ok)
         #expect(appState.pendingLayoutApply == nil)
     }
+    // MARK: - pane.agent-set
+
+    @Test
+    func pane_agent_set_persists_allow_listed_metadata() async throws {
+        let (handler, appState, projectStore) = makeHandler()
+        let project = seedProject(appState, projectStore)
+        let pane = try #require(appState.workspaces[project.id]?.activeTab?.splitRoot.allPanes().first)
+
+        let response = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(
+                session: pane.sessionName,
+                agentProvider: "pi",
+                agentSessionID: "sample"
+            )
+        ))
+
+        #expect(response.ok)
+        #expect(pane.agentSession == AgentSessionMetadata(provider: .pi, sessionID: "sample"))
+    }
+
+    @Test
+    func pane_agent_set_requires_target_and_valid_metadata() async {
+        let (handler, appState, projectStore) = makeHandler()
+        _ = seedProject(appState, projectStore)
+
+        let missingTarget = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(agentProvider: "pi", agentSessionID: "sample")
+        ))
+        #expect(missingTarget.error?.code == .badRequest)
+
+        let missingProvider = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(pane: "pane:1", agentSessionID: "sample")
+        ))
+        #expect(missingProvider.error?.code == .badRequest)
+
+        let unknownProvider = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(pane: "pane:1", agentProvider: "claude", agentSessionID: "sample")
+        ))
+        #expect(unknownProvider.error?.code == .badRequest)
+
+        let unknownPane = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(pane: "pane:99", agentProvider: "pi", agentSessionID: "sample")
+        ))
+        #expect(unknownPane.error?.code == .notFound)
+    }
 }
 
 /// Actor recording killed session names (kills hop through async closures).

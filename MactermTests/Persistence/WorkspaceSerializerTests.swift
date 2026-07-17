@@ -391,3 +391,42 @@ struct WorkspaceSerializerSessionIdentityTests {
         #expect(pane.projectPath == "/tmp/renamed-project/src")
     }
 }
+
+@MainActor
+struct WorkspaceSerializerAgentSessionTests {
+    @Test
+    func pre_feature_pane_snapshot_decodes_without_agent_metadata() throws {
+        let id = UUID()
+        let data = Data(
+            """
+            {"id":"\(id.uuidString)","projectPath":"/tmp/project"}
+            """.utf8
+        )
+        let snapshot = try JSONDecoder().decode(PaneSnapshot.self, from: data)
+        #expect(snapshot.agentSession == nil)
+    }
+
+    @Test
+    func snapshot_and_restore_preserve_agent_metadata() throws {
+        let projectID = UUID()
+        let metadata = AgentSessionMetadata(
+            provider: .omp,
+            sessionID: "native-123",
+            workingDirectory: "/tmp/project"
+        )
+        let pane = Pane(projectPath: "/tmp/project", projectID: projectID, agentSession: metadata)
+        let tab = TerminalTab(id: UUID(), splitRoot: .pane(pane), focusedPaneID: pane.id)
+        let workspace = Workspace(
+            projectID: projectID,
+            tabs: [tab],
+            activeTabID: tab.id
+        )
+
+        let snapshot = try #require(WorkspaceSerializer.snapshot([projectID: workspace]).first)
+        let restored = try #require(
+            WorkspaceSerializer.restore(from: [snapshot], validIDs: [projectID]).first
+        )
+        let restoredPane = try #require(restored.tabs.first?.splitRoot.allPanes().first)
+        #expect(restoredPane.agentSession == metadata)
+    }
+}
