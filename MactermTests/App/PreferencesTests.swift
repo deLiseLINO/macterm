@@ -60,27 +60,26 @@ struct PreferencesTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let preferences = Preferences(defaults: defaults)
-
-        #expect(preferences.mainWindowWidth == 1200)
-        #expect(preferences.mainWindowHeight == 800)
+        #expect(preferences.mainWindowWidth == 1200.0)
+        #expect(preferences.mainWindowHeight == 800.0)
 
         preferences.mainWindowWidth = 1600
         preferences.mainWindowHeight = 1000
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowWidth) == 1600)
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowHeight) == 1000)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 1600.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 1000.0)
 
         preferences.mainWindowWidth = 799
         preferences.mainWindowHeight = 400
-        #expect(preferences.mainWindowWidth == 800)
-        #expect(preferences.mainWindowHeight == 500)
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowWidth) == 800)
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowHeight) == 500)
+        #expect(preferences.mainWindowWidth == 800.0)
+        #expect(preferences.mainWindowHeight == 500.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 800.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 500.0)
 
         preferences.mainWindowWidth = 6001
         preferences.mainWindowHeight = 4001
-        #expect(preferences.mainWindowWidth == 6000)
-        #expect(preferences.mainWindowHeight == 4000)
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowWidth) == 6000)
-        #expect(defaults.integer(forKey: Preferences.Keys.mainWindowHeight) == 4000)
+        #expect(preferences.mainWindowWidth == 6000.0)
+        #expect(preferences.mainWindowHeight == 4000.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 6000.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 4000.0)
     }
 }

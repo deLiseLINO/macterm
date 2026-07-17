@@ -82,30 +82,33 @@ final class Preferences {
     }
 
     /// Default size for the main Macterm window, in points.
-    var mainWindowWidth: Int {
-        didSet {
-            let clamped = Self.clamp(
-                mainWindowWidth,
+    var mainWindowWidth: Double {
+        get { _mainWindowWidth }
+        set {
+            _mainWindowWidth = Self.clamp(
+                newValue,
                 minimum: Self.minMainWindowWidth,
                 maximum: Self.maxMainWindowWidth
             )
-            mainWindowWidth = clamped
-            defaults.set(clamped, forKey: Keys.mainWindowWidth)
+            defaults.set(_mainWindowWidth, forKey: Keys.mainWindowWidth)
         }
     }
+    private var _mainWindowWidth: Double = 1200
 
     /// Default size for the main Macterm window, in points.
-    var mainWindowHeight: Int {
-        didSet {
-            let clamped = Self.clamp(
-                mainWindowHeight,
+    var mainWindowHeight: Double {
+        get { _mainWindowHeight }
+        set {
+            _mainWindowHeight = Self.clamp(
+                newValue,
                 minimum: Self.minMainWindowHeight,
                 maximum: Self.maxMainWindowHeight
             )
-            mainWindowHeight = clamped
-            defaults.set(clamped, forKey: Keys.mainWindowHeight)
+            defaults.set(_mainWindowHeight, forKey: Keys.mainWindowHeight)
         }
     }
+    private var _mainWindowHeight: Double = 800
+
 
     // MARK: - Sidebar icons
 
@@ -165,10 +168,10 @@ final class Preferences {
     /// Upper bound for `paneDimOpacity` — a fully black overlay reads as broken, not dim.
     static let maxPaneDimOpacity: Double = 0.8
 
-    static let minMainWindowWidth = 800
-    static let maxMainWindowWidth = 6000
-    static let minMainWindowHeight = 500
-    static let maxMainWindowHeight = 4000
+    static let minMainWindowWidth: Double = 800
+    static let maxMainWindowWidth: Double = 6000
+    static let minMainWindowHeight: Double = 500
+    static let maxMainWindowHeight: Double = 4000
 
     /// Curated SF Symbols offered in Settings — keeps users from typing invalid names.
     static let projectIconChoices: [String] = [
@@ -347,13 +350,13 @@ final class Preferences {
         paneDimOpacity = Self.clampPaneDimOpacity(
             (defaults.object(forKey: Keys.paneDimOpacity) as? Double) ?? 0.2
         )
-        mainWindowWidth = Self.clamp(
-            defaults.object(forKey: Keys.mainWindowWidth) as? Int ?? 1200,
+        _mainWindowWidth = Self.clamp(
+            defaults.object(forKey: Keys.mainWindowWidth) as? Double ?? 1200,
             minimum: Self.minMainWindowWidth,
             maximum: Self.maxMainWindowWidth
         )
-        mainWindowHeight = Self.clamp(
-            defaults.object(forKey: Keys.mainWindowHeight) as? Int ?? 800,
+        _mainWindowHeight = Self.clamp(
+            defaults.object(forKey: Keys.mainWindowHeight) as? Double ?? 800,
             minimum: Self.minMainWindowHeight,
             maximum: Self.maxMainWindowHeight
         )
@@ -387,6 +390,9 @@ final class Preferences {
     }
 
     private static func clamp(_ value: Int, minimum: Int, maximum: Int) -> Int {
+        max(minimum, min(maximum, value))
+    }
+    private static func clamp(_ value: Double, minimum: Double, maximum: Double) -> Double {
         max(minimum, min(maximum, value))
     }
 

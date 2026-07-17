@@ -250,9 +250,9 @@ private struct AppearanceSettings: View {
     @State
     private var paneDimOpacity: Double = Preferences.shared.paneDimOpacity
     @State
-    private var mainWindowWidth: Int = Preferences.shared.mainWindowWidth
+    private var mainWindowWidth: Double = Preferences.shared.mainWindowWidth
     @State
-    private var mainWindowHeight: Int = Preferences.shared.mainWindowHeight
+    private var mainWindowHeight: Double = Preferences.shared.mainWindowHeight
 
     var body: some View {
         Form {
