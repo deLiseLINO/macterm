@@ -168,6 +168,7 @@ targets:
     sources:
       - path: CLI
       - path: Macterm/Control/ControlProtocol.swift
+      - path: Macterm/Model/AgentSessionMetadata.swift
     dependencies:
       - package: ArgumentParser
         product: ArgumentParser
