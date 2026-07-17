@@ -82,10 +82,13 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.thdxg.macterm.ci" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleName Macterm CI" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Macterm CI" "$INFO_PLIST"
+          # Point CI test builds at a distinct, inert appcast so they never
+          # compete with the release app for Sparkle updates.
+          /usr/libexec/PlistBuddy -c "Set :SUFeedURL https://deLiseLINO.github.io/macterm-ci/appcast.xml" "$INFO_PLIST"
           codesign -f -s - --deep --preserve-metadata=entitlements \
             "build/export-ci/Macterm CI.app" >/dev/null 2>&1
           codesign --verify --deep --strict "build/export-ci/Macterm CI.app"
-          plutil -p "$INFO_PLIST" | grep -E "CFBundleIdentifier|CFBundleName|CFBundleDisplayName"
+          plutil -p "$INFO_PLIST" | grep -E "CFBundleIdentifier|CFBundleName|CFBundleDisplayName|SUFeedURL"
 
       - name: Upload release app artifact
         uses: actions/upload-artifact@v4
