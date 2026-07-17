@@ -81,6 +81,36 @@ final class Preferences {
         didSet { defaults.set(paneDimOpacity, forKey: Keys.paneDimOpacity) }
     }
 
+    /// Default size for the main Macterm window, in points.
+    var mainWindowWidth: Int {
+        didSet {
+            let clamped = Self.clamp(
+                mainWindowWidth,
+                minimum: Self.minMainWindowWidth,
+                maximum: Self.maxMainWindowWidth
+            )
+            if mainWindowWidth != clamped {
+                mainWindowWidth = clamped
+            }
+            defaults.set(clamped, forKey: Keys.mainWindowWidth)
+        }
+    }
+
+    /// Default size for the main Macterm window, in points.
+    var mainWindowHeight: Int {
+        didSet {
+            let clamped = Self.clamp(
+                mainWindowHeight,
+                minimum: Self.minMainWindowHeight,
+                maximum: Self.maxMainWindowHeight
+            )
+            if mainWindowHeight != clamped {
+                mainWindowHeight = clamped
+            }
+            defaults.set(clamped, forKey: Keys.mainWindowHeight)
+        }
+    }
+
     // MARK: - Sidebar icons
 
     var projectIconSymbol: String {
@@ -132,11 +162,17 @@ final class Preferences {
         numberIconCircle,
         numberIconSquareFill,
         numberIconSquare,
+
         numberIconPlain,
     ]
 
     /// Upper bound for `paneDimOpacity` — a fully black overlay reads as broken, not dim.
     static let maxPaneDimOpacity: Double = 0.8
+
+    static let minMainWindowWidth = 800
+    static let maxMainWindowWidth = 6000
+    static let minMainWindowHeight = 500
+    static let maxMainWindowHeight = 4000
 
     /// Curated SF Symbols offered in Settings — keeps users from typing invalid names.
     static let projectIconChoices: [String] = [
@@ -307,13 +343,23 @@ final class Preferences {
 
     private let defaults: UserDefaults
 
-    private init(defaults: UserDefaults) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
         autoTilingEnabled = defaults.bool(forKey: Keys.autoTiling)
         eagerlyStartProjectTabs = (defaults.object(forKey: Keys.eagerlyStartProjectTabs) as? Bool) ?? true
         terminalScrollSpeed = Self.clampScrollSpeed(defaults.double(forKey: Keys.terminalScrollSpeed), fallback: 1.0)
         paneDimOpacity = Self.clampPaneDimOpacity(
             (defaults.object(forKey: Keys.paneDimOpacity) as? Double) ?? 0.2
+        )
+        mainWindowWidth = Self.clamp(
+            defaults.object(forKey: Keys.mainWindowWidth) as? Int ?? 1200,
+            minimum: Self.minMainWindowWidth,
+            maximum: Self.maxMainWindowWidth
+        )
+        mainWindowHeight = Self.clamp(
+            defaults.object(forKey: Keys.mainWindowHeight) as? Int ?? 800,
+            minimum: Self.minMainWindowHeight,
+            maximum: Self.maxMainWindowHeight
         )
         windowOpacity = (defaults.object(forKey: Keys.windowOpacity) as? Double) ?? 1.0
         windowBlurRadius = defaults.integer(forKey: Keys.windowBlurRadius)
@@ -344,6 +390,10 @@ final class Preferences {
         max(0.0, min(maxPaneDimOpacity, v))
     }
 
+    private static func clamp(_ value: Int, minimum: Int, maximum: Int) -> Int {
+        max(minimum, min(maximum, value))
+    }
+
     private static func clampScrollSpeed(_ v: Double, fallback: Double) -> Double {
         guard v > 0 else { return fallback }
         return max(0.25, min(3.0, v))
@@ -372,6 +422,8 @@ final class Preferences {
         static let terminalScrollSpeed = "macterm.terminal.scrollSpeed"
         static let paneDimOpacity = "macterm.pane.dimOpacity"
         static let windowOpacity = "macterm.window.opacity"
+        static let mainWindowWidth = "macterm.window.mainWidth"
+        static let mainWindowHeight = "macterm.window.mainHeight"
         static let windowBlurRadius = "macterm.window.blurRadius"
         static let windowGlassEnabled = "macterm.window.glassEnabled"
         static let windowGlassStyle = "macterm.window.glassStyle"

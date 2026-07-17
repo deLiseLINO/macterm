@@ -138,7 +138,10 @@ struct MactermApp: App {
                     appDelegate.installResponders(appState: appState, projectStore: projectStore)
                 }
         }
-        .defaultSize(width: 1200, height: 800)
+        .defaultSize(
+            width: Preferences.shared.mainWindowWidth,
+            height: Preferences.shared.mainWindowHeight
+        )
         .commands {
             CommandGroup(replacing: .newItem) {
                 // Replace SwiftUI's "New Window" with "Show Window", which

@@ -249,6 +249,10 @@ private struct AppearanceSettings: View {
     private var liquidGlassStyle: WindowGlassStyle = Preferences.shared.windowGlassStyle
     @State
     private var paneDimOpacity: Double = Preferences.shared.paneDimOpacity
+    @State
+    private var mainWindowWidth: Int = Preferences.shared.mainWindowWidth
+    @State
+    private var mainWindowHeight: Int = Preferences.shared.mainWindowHeight
 
     var body: some View {
         Form {
@@ -293,6 +297,45 @@ private struct AppearanceSettings: View {
                 .disabled(backgroundOpacity >= 0.999 || liquidGlass)
 
                 Text(blurFootnote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Stepper(
+                    value: $mainWindowWidth,
+                    in: Preferences.minMainWindowWidth ... Preferences.maxMainWindowWidth,
+                    step: 10
+                ) {
+                    HStack {
+                        Text("Main window width")
+                            .frame(width: sliderLabelWidth, alignment: .leading)
+                        Spacer()
+                        Text("\(mainWindowWidth) pt")
+                            .monospacedDigit()
+                    }
+                }
+                .onChange(of: mainWindowWidth) { _, v in
+                    Preferences.shared.mainWindowWidth = v
+                    mainWindowWidth = Preferences.shared.mainWindowWidth
+                }
+
+                Stepper(
+                    value: $mainWindowHeight,
+                    in: Preferences.minMainWindowHeight ... Preferences.maxMainWindowHeight,
+                    step: 10
+                ) {
+                    HStack {
+                        Text("Main window height")
+                            .frame(width: sliderLabelWidth, alignment: .leading)
+                        Spacer()
+                        Text("\(mainWindowHeight) pt")
+                            .monospacedDigit()
+                    }
+                }
+                .onChange(of: mainWindowHeight) { _, v in
+                    Preferences.shared.mainWindowHeight = v
+                    mainWindowHeight = Preferences.shared.mainWindowHeight
+                }
+
+                Text("Applied the next time Macterm launches.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
