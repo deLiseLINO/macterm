@@ -207,6 +207,7 @@ private struct TerminalSurface: NSViewRepresentable {
         }
         view.onCommandFinished = { [weak pane, weak view] exitCode, durationNs in
             guard let pane else { return }
+            let exitCode = Int(exitCode)
             pane.recordCommandOutcome(exitCode: exitCode)
             if Preferences.shared.showTabStatusIndicator {
                 pane.markCommandFinished()
