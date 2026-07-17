@@ -15,7 +15,6 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
 
     private let notificationCenter: NotificationCenter
     private let userNotificationCenter: UNUserNotificationCenter
-    nonisolated(unsafe) private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -25,24 +24,21 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
         self.userNotificationCenter = userNotificationCenter
         super.init()
 
-        let completionToken = notificationCenter.addObserver(
-            forName: .terminalCommandCompleted,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            MainActor.assumeIsolated {
-                self?.handleCommandCompletion(notification)
-            }
-        }
-        observerTokens.append((notificationCenter, completionToken))
+        notificationCenter.addObserver(
+            self,
+            selector: #selector(commandCompleted(_:)),
+            name: .terminalCommandCompleted,
+            object: nil
+        )
     }
 
     deinit {
-        for entry in observerTokens {
-            entry.center.removeObserver(entry.token)
-        }
+        notificationCenter.removeObserver(self)
     }
 
+    @objc private func commandCompleted(_ notification: Notification) {
+        handleCommandCompletion(notification)
+    }
     func requestAuthorization() {
         userNotificationCenter.requestAuthorization(options: [.alert]) { granted, error in
             if let error {
