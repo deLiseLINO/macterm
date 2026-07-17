@@ -97,6 +97,32 @@ final class AppState {
     private var tabCycleIndex: Int = 0
     var isTabCycling: Bool { !tabCycleOrder.isEmpty }
 
+    @ObservationIgnored
+    private let closedTabStore: ClosedTabStore
+
+    var hasClosedTabs: Bool {
+        !closedTabStore.isEmpty
+    }
+
+    @discardableResult
+    func reopenLastClosedTab() -> Bool {
+        guard let entry = closedTabStore.consumeLatest(),
+              let ws = workspaces[entry.projectID]
+        else { return false }
+
+        let tab = WorkspaceSerializer.restoreTab(entry.tab, projectID: entry.projectID)
+        guard !tab.splitRoot.allPanes().isEmpty else { return false }
+        ws.adoptTab(tab)
+        activeProjectID = entry.projectID
+        saveWorkspaces()
+
+        if let focusedPaneID = tab.focusedPaneID {
+            let window = NSApp.keyWindow ?? (NSApp.delegate as? AppDelegate)?.mainWindow
+            FocusRestoration.restoreFocus(to: focusedPaneID, in: tab.splitRoot, window: window)
+        }
+        return true
+    }
+
     private let workspaceStore: WorkspaceStore
     private var autoTileObserver: Any?
 
@@ -180,6 +206,11 @@ final class AppState {
     /// session kills without a real daemon.
     @ObservationIgnored
     var zmx: ZmxClient = .live
+    /// Decides which restored panes should resume their agent sessions after
+    /// the workspace is rebuilt. The coordinator's capture must run before any
+    /// `zmx attach` changes the live session list.
+    @ObservationIgnored
+    private let agentResumeCoordinator = AgentResumeCoordinator()
 
     /// Refresh policy for `ZmxForegroundResolver`'s name→leader-pid cache:
     /// refresh on session lifecycle events plus a 30s reconcile TTL — never
@@ -211,13 +242,24 @@ final class AppState {
     /// so tests never read or write the user's real directory.
     @ObservationIgnored
     let projectFiles: ProjectFileStore
+    @ObservationIgnored
+    private let completionNotificationCenter: NotificationCenter
+
+    @ObservationIgnored
+    var foregroundProcessRefresher: (Pane, Bool) -> Void = { pane, trackExecution in
+        pane.refreshForegroundProcess(trackExecution: trackExecution)
+    }
 
     init(
         workspaceStore: WorkspaceStore = WorkspaceStore(),
-        projectFiles: ProjectFileStore = ProjectFileStore()
+        projectFiles: ProjectFileStore = ProjectFileStore(),
+        notificationCenter: NotificationCenter = .default,
+        closedTabStore: ClosedTabStore = ClosedTabStore()
     ) {
         self.workspaceStore = workspaceStore
         self.projectFiles = projectFiles
+        completionNotificationCenter = notificationCenter
+        self.closedTabStore = closedTabStore
         let autoTileToken = NotificationCenter.default.addObserver(
             forName: .autoTilingEnabledDidChange,
             object: nil,
@@ -381,6 +423,7 @@ final class AppState {
         for (projectID, ws) in workspaces {
             for tab in ws.tabs {
                 for pane in tab.splitRoot.allPanes() {
+                    let oldState = pane.executionState
                     seenPanes.insert(pane.id)
                     if pane.isRemote {
                         // The local process table only knows `ssh` here — a
@@ -393,11 +436,19 @@ final class AppState {
                             activeRemotePanes.append(pane)
                         }
                     } else {
-                        pane.refreshForegroundProcess(trackExecution: trackExecution)
+                        foregroundProcessRefresher(pane, trackExecution)
                     }
                     if trackExecution {
                         settleIfVisible(pane)
                     }
+                    let newState = pane.executionState
+                    emitCommandCompletionIfNeeded(
+                        projectID: projectID,
+                        tabID: tab.id,
+                        pane: pane,
+                        oldState: oldState,
+                        newState: newState
+                    )
                     if pane.executionState == .running { sawBusyPane = true }
                     didAcknowledgeCompletion = acknowledgeFinishedCommandIfActive(
                         paneID: pane.id,
@@ -413,6 +464,32 @@ final class AppState {
         if !activeRemotePanes.isEmpty, isAnyWindowVisible() {
             remoteForegroundResolver.refresh(panes: activeRemotePanes, probe: zmx.remoteForegroundComms)
         }
+    }
+    private func emitCommandCompletionIfNeeded(
+        projectID: UUID,
+        tabID: UUID,
+        pane: Pane,
+        oldState: TerminalExecutionState,
+        newState: TerminalExecutionState
+    ) {
+        guard oldState == .running, newState == .done else { return }
+        let label = pane.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        completionNotificationCenter.post(
+            name: .terminalCommandCompleted,
+            object: nil,
+            userInfo: [
+                TerminalCommandCompletionUserInfoKey.projectID: projectID.uuidString,
+                TerminalCommandCompletionUserInfoKey.tabID: tabID.uuidString,
+                TerminalCommandCompletionUserInfoKey.paneID: pane.id.uuidString,
+                TerminalCommandCompletionUserInfoKey.label: label.isEmpty ? "Terminal command" : label,
+                TerminalCommandCompletionUserInfoKey.outcome:
+                    pane.lastCommandOutcome?.rawValue ?? "success",
+                TerminalCommandCompletionUserInfoKey.isQuickTerminal:
+                    pane.projectID == QuickTerminalService.ephemeralProjectID,
+                TerminalCommandCompletionUserInfoKey.completionTimestamp:
+                    String(format: "%.6f", Date().timeIntervalSince1970)
+            ]
+        )
     }
 
     /// Quiet-settle only while the surface actually renders: an occluded pane
@@ -459,9 +536,11 @@ final class AppState {
 
     // MARK: - Restore / Save
 
-    func restoreSelection(projects: [Project]) {
+    func restoreSelection(projects: [Project]) async {
         logger.info("restoreSelection: \(projects.count, privacy: .public) projects")
         hasRestoredSelection = true
+        let preRestoreLiveSessionNames = await agentResumeCoordinator.capturePreRestoreLiveSessionNames()
+
         let snapshots = workspaceStore.load()
         let valid = Set(projects.map(\.id))
         // Restore every project's snapshot — including layout-file projects.
@@ -486,15 +565,19 @@ final class AppState {
             acknowledgeActiveTab(projectID: id)
             warmFocusedProject()
         }
-        // Sweep crash/force-quit orphans: kill zero-client macterm-* sessions
-        // no restored pane claims. Attach-aware and fail-closed (a failed
-        // probe reaps nothing); foreign prefixes (supa-*, user sessions) are
-        // spared. Quick-terminal sessions are never persisted, so leftovers
-        // from a crash die here too.
-        let known = Set(workspaces.values
+        // Sweep crash/force-quit orphans: kill macterm-* sessions no restored
+        // pane claims. Attach-aware and fail-closed (a failed probe reaps
+        // nothing); foreign prefixes (supa-*, user sessions) are spared.
+        // Quick-terminal sessions are never persisted, so leftovers from a
+        // crash die here too.
+        let allRestoredPanes = Array(workspaces.values
             .flatMap(\.tabs)
-            .flatMap { $0.splitRoot.allPanes() }
-            .map(\.sessionName))
+            .flatMap { $0.splitRoot.allPanes() })
+        let known = Set(allRestoredPanes.map(\.sessionName))
+        await agentResumeCoordinator.resumeRestoredAgents(
+            allRestoredPanes,
+            preRestoreLiveSessionNames: preRestoreLiveSessionNames
+        )
         Task { [zmx] in await zmx.reapOrphans(knownSessionNames: known) }
     }
 
@@ -853,6 +936,17 @@ final class AppState {
               let tab = ws.tabs.first(where: { $0.id == tabID })
         else { return }
         logger.debug("closeTab: \(tabID, privacy: .public) project=\(projectID, privacy: .public)")
+        let closedSnapshot = ClosedTabEntry(
+            projectID: projectID,
+            closedAt: Date(),
+            tab: TabSnapshot(
+                id: tab.id,
+                customTitle: tab.customTitle,
+                focusedPaneID: tab.focusedPaneID,
+                splitRoot: WorkspaceSerializer.snapshotNode(tab.splitRoot)
+            )
+        )
+        _ = closedTabStore.record(closedSnapshot)
         for pane in tab.splitRoot.allPanes() {
             // Tab closed for good → its panes' zmx sessions die with it.
             pane.killPersistentSession(using: zmx)

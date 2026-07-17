@@ -11,13 +11,17 @@ struct AppStateTests {
     /// data or `~/.config/macterm/projects`.
     private func makeAppState(
         store: WorkspaceStore? = nil,
-        projectFiles: ProjectFileStore? = nil
+        projectFiles: ProjectFileStore? = nil,
+        closedTabStore: ClosedTabStore? = nil
     ) -> AppState {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("macterm-tests-\(UUID().uuidString).json")
+        let historyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macterm-closed-tests-\(UUID().uuidString).json")
         return AppState(
             workspaceStore: store ?? WorkspaceStore(fileURL: tmp),
-            projectFiles: projectFiles ?? makeProjectFileStore()
+            projectFiles: projectFiles ?? makeProjectFileStore(),
+            closedTabStore: closedTabStore ?? ClosedTabStore(fileURL: historyURL)
         )
     }
 
@@ -91,6 +95,37 @@ struct AppStateTests {
         #expect(tab.splitRoot.allPanes().count == 1)
         #expect(tab.focusedPaneID != target)
     }
+
+
+    @Test
+    func closeTabCapturesAndReopenRestoresLayoutAndFocus() throws {
+        let state = makeAppState()
+        let project = seedProject(state, path: "/tmp/reopen")
+        let workspace = try #require(state.workspaces[project.id])
+        let original = try #require(workspace.activeTab)
+        let firstPaneID = try #require(original.focusedPaneID)
+        _ = original.split(paneID: firstPaneID, direction: .horizontal)
+        guard case let .split(branch) = original.splitRoot else {
+            Issue.record("Expected split tab")
+            return
+        }
+        original.focusedPaneID = branch.second.allPanes().first?.id
+        let focusedPaneID = original.focusedPaneID
+
+        state.closeTab(original.id, projectID: project.id)
+        #expect(workspace.tabs.isEmpty)
+        #expect(state.reopenLastClosedTab())
+
+        let reopened = try #require(workspace.activeTab)
+        #expect(reopened.id == original.id)
+        #expect(reopened.focusedPaneID == focusedPaneID)
+        guard case let .split(reopenedBranch) = reopened.splitRoot else {
+            Issue.record("Expected reopened split tab")
+            return
+        }
+        #expect(reopenedBranch.ratio == branch.ratio)
+    }
+
 
     /// Integration-level regression: HV-close on the active tab via AppState.
     @Test
@@ -811,7 +846,7 @@ struct AppStateTests {
     }
 
     @Test
-    func reopen_restores_snapshot_silently_and_ignores_project_file() throws {
+    func reopen_restores_snapshot_silently_and_ignores_project_file() async throws {
         // Reopen is always silent: a restored session snapshot wins (a
         // project's panes must reattach their live zmx sessions, and its live
         // layout is remembered), and the declared file is NOT applied and NOT
@@ -846,7 +881,7 @@ struct AppStateTests {
         defer { Preferences.shared.activeProjectID = priorActive }
 
         let state = makeAppState(store: store, projectFiles: files)
-        state.restoreSelection(projects: [project])
+        await state.restoreSelection(projects: [project])
 
         // Restored snapshot wins: one pane, file NOT applied, NO prompt.
         let ws = try #require(state.workspaces[project.id])
@@ -856,7 +891,7 @@ struct AppStateTests {
     }
 
     @Test
-    func project_file_auto_applies_on_genuine_first_open_without_snapshot() throws {
+    func project_file_auto_applies_on_genuine_first_open_without_snapshot() async throws {
         // No snapshot at all → the declared file still seeds the workspace on
         // first open (pure-spawn, no prompt). The only auto-apply path left.
         let dir = FileManager.default.temporaryDirectory
@@ -882,7 +917,7 @@ struct AppStateTests {
         defer { Preferences.shared.activeProjectID = priorActive }
 
         let state = makeAppState(store: store, projectFiles: files)
-        state.restoreSelection(projects: [project])
+        await state.restoreSelection(projects: [project])
 
         let ws = try #require(state.workspaces[project.id])
         #expect(ws.tabs.count == 1)

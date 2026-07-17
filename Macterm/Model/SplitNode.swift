@@ -52,6 +52,12 @@ enum TerminalExecutionState: Equatable {
     case done
 }
 
+enum TerminalCommandOutcome: String, Equatable, Sendable {
+    case success
+    case error
+    case cancelled
+}
+
 private struct ForegroundProcessKey: Equatable {
     let name: String
     let pid: pid_t?
@@ -303,6 +309,10 @@ final class Pane: Identifiable {
     let shell: String?
     /// Extra environment variables for the spawned shell. nil/empty → none.
     let env: [String: String]?
+    /// Optional native agent identity used to resume a provider session after a
+    /// restored zmx session is known to be absent.
+    var agentSession: AgentSessionMetadata?
+
     /// The basename of the pane's live foreground process — a running command
     /// (`hx`, `btop`), or the pane's shell when idle at a prompt (so a nested
     /// `zsh` launched inside `nu` shows `zsh`). nil only before the surface
@@ -343,6 +353,25 @@ final class Pane: Identifiable {
             // per-frame heartbeats don't reach here (value unchanged).
             NotificationCenter.default.post(name: .terminalPollEvent, object: nil)
         }
+    }
+    /// Outcome of the most recently finished command, captured from the
+    /// terminal surface `exitCode` and consumed by command-completion
+    /// notifications. Reset to `nil` when a new command starts.
+    private(set) var lastCommandOutcome: TerminalCommandOutcome?
+
+    func recordCommandOutcome(exitCode: Int) {
+        if exitCode < 0 {
+            lastCommandOutcome = .cancelled
+        } else if exitCode == 0 {
+            lastCommandOutcome = .success
+        } else {
+            lastCommandOutcome = .error
+        }
+    }
+
+    func markCommandRunning() {
+        lastCommandOutcome = nil
+        executionState = executionTracker.markProgressStarted(currentState: executionState)
     }
 
     @ObservationIgnored
@@ -409,9 +438,6 @@ final class Pane: Identifiable {
         )
     }
 
-    func markCommandRunning() {
-        executionState = executionTracker.markProgressStarted(currentState: executionState)
-    }
 
     func markCommandFinished() {
         executionState = executionTracker.markCommandFinished(currentState: executionState)
@@ -698,7 +724,8 @@ final class Pane: Identifiable {
         sessionName persistedSessionName: String? = nil,
         command: String? = nil,
         shell: String? = nil,
-        env: [String: String]? = nil
+        env: [String: String]? = nil,
+        agentSession: AgentSessionMetadata? = nil
     ) {
         self.projectPath = projectPath
         self.projectID = projectID
@@ -729,6 +756,7 @@ final class Pane: Identifiable {
         self.command = command
         self.shell = shell
         self.env = env
+        self.agentSession = agentSession
         executionTracker = TerminalExecutionTracker(hasUserInteraction: command != nil)
     }
 

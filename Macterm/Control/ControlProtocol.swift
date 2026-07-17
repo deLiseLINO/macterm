@@ -65,6 +65,11 @@ struct ControlArgs: Codable, Equatable {
     /// zmx session name (`macterm-<slug>-<hex12>`) — the restart-stable pane
     /// address.
     var session: String?
+    /// Provider name for `pane.agent-set` (`pi` or `omp`).
+    var agentProvider: String?
+    /// Provider-native session identifier for `pane.agent-set`.
+    var agentSessionID: String?
+
     /// Filesystem path (`project.create`).
     var path: String?
     /// Display name (`project.create`).
@@ -106,12 +111,16 @@ struct ControlArgs: Codable, Equatable {
         cols: Int? = nil,
         scrollback: Bool? = nil,
         axis: String? = nil,
-        ratio: Double? = nil
+        ratio: Double? = nil,
+        agentProvider: String? = nil,
+        agentSessionID: String? = nil
     ) {
         self.project = project
         self.tab = tab
         self.pane = pane
         self.session = session
+        self.agentProvider = agentProvider
+        self.agentSessionID = agentSessionID
         self.path = path
         self.name = name
         self.select = select

@@ -82,6 +82,10 @@ struct PaneSnapshot: Codable {
     /// did NOT survive (reboot, external kill) respawns where the user was.
     /// A surviving session reattaches with its own live cwd regardless.
     var workingDirectory: String?
+    /// Optional provider-native agent identity. The value is typed and contains
+    /// no executable command, credentials, or environment dictionary.
+    var agentSession: AgentSessionMetadata?
+
     // No `title`: the tab name is derived live from the pane's foreground
     // process, so there's nothing per-pane to persist. (An older snapshot's
     // `title` key is harmlessly ignored on decode.)
@@ -95,7 +99,8 @@ struct PaneSnapshot: Codable {
         needsAttention: Bool? = nil,
         sessionID: UUID? = nil,
         sessionName: String? = nil,
-        workingDirectory: String? = nil
+        workingDirectory: String? = nil,
+        agentSession: AgentSessionMetadata? = nil
     ) {
         self.id = id
         self.projectPath = projectPath
@@ -103,6 +108,7 @@ struct PaneSnapshot: Codable {
         self.sessionID = sessionID
         self.sessionName = sessionName
         self.workingDirectory = workingDirectory
+        self.agentSession = agentSession
     }
 }
 
@@ -259,14 +265,16 @@ enum WorkspaceSerializer {
     static func restore(from snapshots: [WorkspaceSnapshot], validIDs: Set<UUID>) -> [Workspace] {
         snapshots.compactMap { snap in
             guard validIDs.contains(snap.projectID) else { return nil }
-            let tabs = snap.tabs.map { t in
-                let root = restoreNode(t.splitRoot, projectID: snap.projectID)
-                let focused = t.focusedPaneID.flatMap { root.findPane(id: $0)?.id } ?? root.allPanes().first?.id
-                return TerminalTab(id: t.id, splitRoot: root, focusedPaneID: focused, customTitle: t.customTitle)
-            }
+            let tabs = snap.tabs.map { restoreTab($0, projectID: snap.projectID) }
             guard !tabs.isEmpty else { return nil }
             return Workspace(projectID: snap.projectID, tabs: tabs, activeTabID: snap.activeTabID)
         }
+    }
+
+    static func restoreTab(_ snapshot: TabSnapshot, projectID: UUID) -> TerminalTab {
+        let root = restoreNode(snapshot.splitRoot, projectID: projectID)
+        let focused = snapshot.focusedPaneID.flatMap { root.findPane(id: $0)?.id } ?? root.allPanes().first?.id
+        return TerminalTab(id: snapshot.id, splitRoot: root, focusedPaneID: focused, customTitle: snapshot.customTitle)
     }
 
     static func snapshotNode(_ node: SplitNode) -> SplitNodeSnapshot {
@@ -295,7 +303,8 @@ enum WorkspaceSerializer {
                 needsAttention: needsAttention,
                 sessionID: p.sessionID,
                 sessionName: p.sessionName,
-                workingDirectory: liveCwd
+                workingDirectory: liveCwd,
+                agentSession: p.agentSession
             ))
         case let .split(b):
             return .split(SplitBranchSnapshot(
@@ -325,7 +334,8 @@ enum WorkspaceSerializer {
                 projectPath: p.workingDirectory ?? p.projectPath,
                 projectID: projectID,
                 sessionID: p.sessionID ?? UUID(),
-                sessionName: p.sessionName
+                sessionName: p.sessionName,
+                agentSession: p.agentSession
             )
             if p.needsAttention == true {
                 pane.restoreNeedsAttention()

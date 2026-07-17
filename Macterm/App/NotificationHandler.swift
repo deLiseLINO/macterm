@@ -6,18 +6,90 @@ private let logger = Logger(subsystem: appBundleID, category: "NotificationHandl
 /// The delegate methods are `nonisolated` (they can be called off-main) and
 /// hand off to the main actor explicitly via a `Task { @MainActor }`, instead
 /// of a `@preconcurrency` conformance that would silently disable isolation
-/// checking. Only Sendable values (the notification's String/Bool fields) cross
-/// the boundary — the non-Sendable `response`/`completionHandler` stay on the
-/// calling side — so Swift 6 concurrency checking stays ON.
+/// checking.
 @MainActor
 final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationHandler()
+
     weak var appState: AppState?
 
+    private let notificationCenter: NotificationCenter
+    private let userNotificationCenter: UNUserNotificationCenter
+    nonisolated(unsafe) private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+
+    init(
+        notificationCenter: NotificationCenter = .default,
+        userNotificationCenter: UNUserNotificationCenter = .current()
+    ) {
+        self.notificationCenter = notificationCenter
+        self.userNotificationCenter = userNotificationCenter
+        super.init()
+
+        let completionToken = notificationCenter.addObserver(
+            forName: .terminalCommandCompleted,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated {
+                self?.handleCommandCompletion(notification)
+            }
+        }
+        observerTokens.append((notificationCenter, completionToken))
+    }
+
+    deinit {
+        for entry in observerTokens {
+            entry.center.removeObserver(entry.token)
+        }
+    }
+
     func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
-            if !granted {
+        userNotificationCenter.requestAuthorization(options: [.alert]) { granted, error in
+            if let error {
+                logger.error("Macterm notification authorization failed: \(error.localizedDescription, privacy: .public)")
+            } else if !granted {
                 logger.notice("Macterm notification authorization denied")
+            }
+        }
+    }
+
+    private func handleCommandCompletion(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let projectID = userInfo[TerminalCommandCompletionUserInfoKey.projectID] as? String,
+              let tabID = userInfo[TerminalCommandCompletionUserInfoKey.tabID] as? String,
+              let paneID = userInfo[TerminalCommandCompletionUserInfoKey.paneID] as? String,
+              UUID(uuidString: projectID) != nil,
+              UUID(uuidString: tabID) != nil,
+              UUID(uuidString: paneID) != nil
+        else { return }
+
+        let label = (userInfo[TerminalCommandCompletionUserInfoKey.label] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let outcome = (userInfo[TerminalCommandCompletionUserInfoKey.outcome] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let isQuickTerminal = userInfo[TerminalCommandCompletionUserInfoKey.isQuickTerminal] as? Bool ?? false
+        let timestamp = (userInfo[TerminalCommandCompletionUserInfoKey.completionTimestamp] as? String)
+            ?? String(format: "%.6f", Date().timeIntervalSince1970)
+
+        let content = UNMutableNotificationContent()
+        content.title = "Command completed"
+        content.body = [label, outcome].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        content.userInfo = [
+            TerminalCommandCompletionUserInfoKey.projectID: projectID,
+            TerminalCommandCompletionUserInfoKey.tabID: tabID,
+            TerminalCommandCompletionUserInfoKey.paneID: paneID,
+            TerminalCommandCompletionUserInfoKey.outcome: outcome ?? "success",
+            TerminalCommandCompletionUserInfoKey.isQuickTerminal: isQuickTerminal
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "macterm-command-\(paneID)-\(timestamp)",
+            content: content,
+            trigger: nil
+        )
+        userNotificationCenter.add(request) { error in
+            if let error {
+                logger.error("Macterm completion notification failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -28,38 +100,46 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         // Extract only Sendable values (Strings/Bool) from the non-Sendable
-        // `response` HERE on the nonisolated side, and complete synchronously —
-        // so nothing non-Sendable crosses the actor boundary (which Swift 6
-        // rejects as a data-race risk). Then hop just those values to the main
-        // actor. This keeps isolation checking ON instead of papering over the
-        // off-main delivery with a `@preconcurrency` conformance.
+        // response before handing off to the main actor.
         let userInfo = response.notification.request.content.userInfo
-        let paneIDString = userInfo["paneID"] as? String
-        let projectIDString = userInfo["projectID"] as? String
-        let isQuickTerminal = userInfo["isQuickTerminal"] as? Bool ?? false
+        let paneIDString = userInfo[TerminalCommandCompletionUserInfoKey.paneID] as? String
+        let projectIDString = userInfo[TerminalCommandCompletionUserInfoKey.projectID] as? String
+        let tabIDString = userInfo[TerminalCommandCompletionUserInfoKey.tabID] as? String
+        let isQuickTerminal = userInfo[TerminalCommandCompletionUserInfoKey.isQuickTerminal] as? Bool ?? false
         completionHandler()
 
         guard let paneIDString, let paneID = UUID(uuidString: paneIDString),
-              let projectIDString, let projectID = UUID(uuidString: projectIDString)
+              let projectIDString, let projectID = UUID(uuidString: projectIDString),
+              let tabIDString, let tabID = UUID(uuidString: tabIDString)
         else { return }
         Task { @MainActor in
-            Self.shared.handleTap(paneID: paneID, projectID: projectID, isQuickTerminal: isQuickTerminal)
+            Self.shared.handleTap(
+                paneID: paneID,
+                tabID: tabID,
+                projectID: projectID,
+                isQuickTerminal: isQuickTerminal
+            )
         }
     }
 
-    private func handleTap(paneID: UUID, projectID: UUID, isQuickTerminal: Bool) {
+    private func handleTap(paneID: UUID, tabID: UUID, projectID: UUID, isQuickTerminal: Bool) {
         if isQuickTerminal {
+            let tab = QuickTerminalService.shared.splitState.tab
+            guard tab.id == tabID, tab.splitRoot.findPane(id: paneID) != nil else { return }
             QuickTerminalService.shared.showPanel()
-            if QuickTerminalService.shared.splitState.tab.splitRoot.findPane(id: paneID) != nil {
-                QuickTerminalService.shared.splitState.tab.focusPane(paneID)
-                FocusRestoration.restoreFocus(
-                    to: paneID,
-                    in: QuickTerminalService.shared.splitState.tab.splitRoot,
-                    window: QuickTerminalService.shared.panel
-                )
-            }
+            tab.focusPane(paneID)
+            FocusRestoration.restoreFocus(
+                to: paneID,
+                in: tab.splitRoot,
+                window: QuickTerminalService.shared.panel
+            )
         } else {
-            appState?.navigateToPane(paneID, projectID: projectID)
+            guard let appState,
+                  let workspace = appState.workspaces[projectID],
+                  let tab = workspace.tabs.first(where: { $0.id == tabID }),
+                  tab.splitRoot.findPane(id: paneID) != nil
+            else { return }
+            appState.navigateToPane(paneID, projectID: projectID)
         }
     }
 

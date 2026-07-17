@@ -138,7 +138,10 @@ struct MactermApp: App {
                     appDelegate.installResponders(appState: appState, projectStore: projectStore)
                 }
         }
-        .defaultSize(width: 1200, height: 800)
+        .defaultSize(
+            width: CGFloat(Preferences.shared.mainWindowWidth),
+            height: CGFloat(Preferences.shared.mainWindowHeight)
+        )
         .commands {
             CommandGroup(replacing: .newItem) {
                 // Replace SwiftUI's "New Window" with "Show Window", which
@@ -200,6 +203,12 @@ struct MactermApp: App {
                 AppCommandMenuItem(command: .nextTab, appState: appState, projectStore: projectStore, titleOverride: "Next Tab")
                 AppCommandMenuItem(command: .previousTab, appState: appState, projectStore: projectStore, titleOverride: "Previous Tab")
                 AppCommandMenuItem(command: .recentTab, appState: appState, projectStore: projectStore, titleOverride: "Recent Tab")
+                AppCommandMenuItem(
+                    command: .reopenClosedTab,
+                    appState: appState,
+                    projectStore: projectStore,
+                    titleOverride: "Reopen Closed Tab"
+                )
             }
             CommandMenu("Project") {
                 AppCommandMenuItem(command: .openProject, appState: appState, projectStore: projectStore, titleOverride: "New Project…")

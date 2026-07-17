@@ -264,8 +264,9 @@ struct PaneCommand: ParsableCommand {
     private static var paneSubcommands: [ParsableCommand.Type] {
         var subs: [ParsableCommand.Type] = [
             List.self, Inspect.self, Dump.self, Split.self, Focus.self,
-            Close.self, Run.self, Zoom.self, ResizeSplit.self,
+            Close.self, Run.self, AgentSet.self, Zoom.self, ResizeSplit.self,
         ]
+
         #if DEBUG
         subs.append(Resize.self)
         #endif
@@ -381,6 +382,35 @@ struct PaneCommand: ParsableCommand {
             var args = target.controlArgs()
             args.run = line
             try runControlCommand(command: "pane.run", args: args, options: options)
+        }
+    }
+
+    struct AgentSet: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "agent-set",
+            abstract: "Record a pi/omp native resume identity; credentials are never stored."
+        )
+
+        @Option(help: "Agent provider: pi or omp.")
+        var provider: String
+
+        @Option(name: .customLong("session-id"), help: "Provider-native session identifier.")
+        var sessionID: String
+
+        @OptionGroup var target: PaneTarget
+        @OptionGroup var options: ConnectionOptions
+
+        func run() throws {
+            let trimmed = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard (try? AgentResumeCommand.validSessionIDPattern.wholeMatch(in: trimmed)) != nil
+            else {
+                Output.printError("--session-id contains invalid characters")
+                throw ExitCode(1)
+            }
+            var args = target.controlArgs()
+            args.agentProvider = provider
+            args.agentSessionID = trimmed
+            try runControlCommand(command: "pane.agent-set", args: args, options: options)
         }
     }
 
