@@ -22,18 +22,18 @@ final class AgentResumeCoordinator {
         }
     }
     func capturePreRestoreLiveSessionNames() async -> Set<String>? {
-        guard !didCapturePreRestoreListing else {
+        if didCapturePreRestoreListing {
             return capturedPreRestoreLiveSessionNames
         }
-        didCapturePreRestoreListing = true
         let names = await zmx.liveSessionNames()
-        capturedPreRestoreLiveSessionNames = names
         if names == nil {
             agentResumeLogger.info("Skipping agent resume: pre-restore zmx session listing unavailable")
+            return nil
         }
+        didCapturePreRestoreListing = true
+        capturedPreRestoreLiveSessionNames = names
         return names
     }
-
     /// Make the one-shot post-attach resume decision. A pane is resumed only
     /// when its saved zmx session was absent from the successful pre-restore
     /// listing. The decision is consumed even when no pane can be resumed, so
@@ -62,9 +62,18 @@ final class AgentResumeCoordinator {
                 agentResumeLogger.info("Skipping agent resume: pane metadata has no usable session ID")
                 continue
             }
-            guard sendText(pane, line + "\n") else {
-                agentResumeLogger.info("Skipping agent resume: pane surface rejected provider command")
-                continue
+            let fullLine = line + "\n"
+            Task { [weak pane] in
+                guard let pane else { return }
+                for attempt in 1...10 {
+                    if sendText(pane, fullLine) {
+                        agentResumeLogger.info("Resumed agent session for pane \(pane.id)")
+                        return
+                    }
+                    agentResumeLogger.info("Agent resume for pane \(pane.id) waiting for surface (attempt \(attempt))")
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+                agentResumeLogger.info("Skipping agent resume: pane surface never accepted provider command")
             }
         }
     }

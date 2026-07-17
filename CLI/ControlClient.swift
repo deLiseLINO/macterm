@@ -67,7 +67,7 @@ struct ControlClient {
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support")
-        for flavor in ["Macterm", "Macterm Debug"] {
+        for flavor in ["Macterm", "Macterm CI", "Macterm Debug"] {
             paths.append(
                 appSupport
                     .appendingPathComponent(flavor, isDirectory: true)

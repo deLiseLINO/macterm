@@ -175,13 +175,16 @@ private struct TerminalSurface: NSViewRepresentable {
             Self.postPaneNotification(pane: pane, title: title, body: body)
         }
         view.onProgressStarted = { [weak pane] in
-            guard Preferences.shared.showTabStatusIndicator else { return }
+            guard Preferences.shared.notifyOnCommandCompletion
+                || Preferences.shared.showTabStatusIndicator
+            else { return }
             pane?.refreshForegroundProcess()
             pane?.markCommandRunning()
         }
         view.onProgressFinished = { [weak pane] in
             guard let pane,
-                  Preferences.shared.showTabStatusIndicator,
+                  (Preferences.shared.notifyOnCommandCompletion
+                   || Preferences.shared.showTabStatusIndicator),
                   pane.executionState == .running
             else { return }
             pane.refreshForegroundProcess()
@@ -189,12 +192,18 @@ private struct TerminalSurface: NSViewRepresentable {
             onCommandFinished()
         }
         view.onTerminalActivity = { [weak pane] in
-            guard let pane, Preferences.shared.showTabStatusIndicator else { return }
+            guard let pane,
+                  Preferences.shared.notifyOnCommandCompletion
+                  || Preferences.shared.showTabStatusIndicator
+            else { return }
             pane.refreshForegroundProcess()
             pane.markTerminalActivity()
         }
         view.onTerminalRender = { [weak pane] in
-            guard let pane, Preferences.shared.showTabStatusIndicator else { return }
+            guard let pane,
+                  Preferences.shared.notifyOnCommandCompletion
+                  || Preferences.shared.showTabStatusIndicator
+            else { return }
             // Renders also happen for prompt redraws and input echo. Use them to
             // keep an already-detected command active (including in-place
             // spinners), but don't let a render alone start the status spinner.
@@ -209,11 +218,15 @@ private struct TerminalSurface: NSViewRepresentable {
             guard let pane else { return }
             let exitCode = Int(exitCode)
             pane.recordCommandOutcome(exitCode: exitCode)
-            if Preferences.shared.showTabStatusIndicator {
+            if Preferences.shared.notifyOnCommandCompletion
+                || Preferences.shared.showTabStatusIndicator
+            {
                 pane.markCommandFinished()
                 onCommandFinished()
             }
-            guard !(NSApp.isActive && view?.isFocused == true) else { return }
+            guard Preferences.shared.notifyOnCommandCompletion,
+                  !(NSApp.isActive && view?.isFocused == true)
+            else { return }
             let durationSec = Double(durationNs) / 1_000_000_000
             let body = if exitCode < 0 {
                 String(format: "Completed in %@", Self.formatDuration(durationSec))
@@ -226,10 +239,12 @@ private struct TerminalSurface: NSViewRepresentable {
 
     /// Post a user notification for a pane using the same `userInfo`
     /// contract as command-completion notifications so both paths route
-    /// taps through `NotificationHandler` consistently. `tabID` is not
-    /// available at this layer, so `NotificationHandler` resolves it from
-    /// the `projectID` + `paneID` pair as a fallback.
-    private static func postPaneNotification(pane: Pane, title: String, body: String) {
+    /// taps through `NotificationHandler` consistently.
+    private static func postPaneNotification(
+        pane: Pane,
+        title: String,
+        body: String
+    ) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -248,6 +263,7 @@ private struct TerminalSurface: NSViewRepresentable {
         )
         UNUserNotificationCenter.current().add(request)
     }
+
 
     private static func formatDuration(_ seconds: Double) -> String {
         if seconds < 60 {

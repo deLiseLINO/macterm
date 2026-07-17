@@ -410,11 +410,9 @@ final class AppState {
     /// workspaces. Each pane only republishes (and triggers a tab re-render)
     /// when its name actually changes, so this is cheap when nothing's moving.
     func refreshAllForegroundProcesses() {
-        // Shell/raw-mode detection (KERN_PROCARGS2 + open/tcgetattr per pane)
-        // and the quiet-settle only matter when the status indicator is shown;
-        // skip them in icon mode so the default poll stays as cheap as before
-        // this feature.
-        let trackExecution = Preferences.shared.showTabStatusIndicator
+        let trackExecution = Preferences.shared.notifyOnCommandCompletion
+            || Preferences.shared.showTabStatusIndicator
+
         var didAcknowledgeCompletion = false
         var seenPanes: Set<UUID> = []
         var sawBusyPane = false

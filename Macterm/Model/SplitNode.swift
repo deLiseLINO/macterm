@@ -394,7 +394,8 @@ final class Pane: Identifiable {
         // titles from `receiveRemoteReportedTitle`, execution state from
         // OSC 133 markers and activity heartbeats.
         guard !isRemote else { return }
-        let track = trackExecution ?? Preferences.shared.showTabStatusIndicator
+        let track = trackExecution ?? (Preferences.shared.notifyOnCommandCompletion
+            || Preferences.shared.showTabStatusIndicator)
         applyForegroundRefresh(
             name: ProcessInspector.runningProcessName(forPane: self),
             // The RESOLVED foreground pid (daemon-side shell/program for a

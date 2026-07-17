@@ -127,6 +127,12 @@ final class Preferences {
         didSet { defaults.set(showTabStatusIndicator, forKey: Keys.showTabStatusIndicator) }
     }
 
+    /// Post a macOS notification when a foreground command finishes while the
+    /// app is not focused. Independent of the tab-status spinner.
+    var notifyOnCommandCompletion: Bool {
+        didSet { defaults.set(notifyOnCommandCompletion, forKey: Keys.notifyOnCommandCompletion) }
+    }
+
     var showNewProjectButton: Bool {
         didSet { defaults.set(showNewProjectButton, forKey: Keys.showNewProjectButton) }
     }
@@ -371,8 +377,9 @@ final class Preferences {
         quickTerminalHeightFraction = Self.clampFraction(defaults.double(forKey: Keys.quickTerminalHeight), fallback: 0.5)
         activeProjectID = (defaults.string(forKey: Keys.activeProjectID)).flatMap(UUID.init)
         projectIconSymbol = defaults.string(forKey: Keys.projectIconSymbol) ?? "folder"
-        tabIconSymbol = defaults.string(forKey: Keys.tabIconSymbol) ?? "terminal"
         showTabStatusIndicator = defaults.object(forKey: Keys.showTabStatusIndicator) as? Bool ?? false
+        notifyOnCommandCompletion = defaults.object(forKey: Keys.notifyOnCommandCompletion) as? Bool ?? true
+
         showNewProjectButton = defaults.object(forKey: Keys.showNewProjectButton) as? Bool ?? true
         terminateSessionsOnQuit = defaults.object(forKey: Keys.terminateSessionsOnQuit) as? Bool ?? false
         tabSwitcherVisibility = (defaults.string(forKey: Keys.tabSwitcherVisibility))
@@ -433,10 +440,11 @@ final class Preferences {
         static let quickTerminalEnabled = "macterm.quickTerminal.enabled"
         static let quickTerminalWidth = "macterm.quickTerminal.width"
         static let quickTerminalHeight = "macterm.quickTerminal.height"
-        static let activeProjectID = "macterm.activeProjectID"
+        static let showTabStatusIndicator = "macterm.sidebar.showTabStatusIndicator"
+        static let notifyOnCommandCompletion = "macterm.notifications.commandCompletion"
+
         static let projectIconSymbol = "macterm.sidebar.projectIcon"
         static let tabIconSymbol = "macterm.sidebar.tabIcon"
-        static let showTabStatusIndicator = "macterm.sidebar.showTabStatusIndicator"
         static let showNewProjectButton = "macterm.sidebar.showNewProjectButton"
         static let terminateSessionsOnQuit = "macterm.session.terminateOnQuit"
         static let tabSwitcherVisibility = "macterm.toolbar.tabSwitcherVisibility"
