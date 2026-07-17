@@ -165,10 +165,10 @@ final class AppState {
     private var pollEventObservers: [Any] = []
 
     /// Every block-based observer token paired with the center it was added to,
-    /// so `deinit` can remove them from the correct center. `AppState` is
-    /// `@MainActor`, so the deinit runs on the same actor and the array is
-    /// accessed without an isolation mismatch.
-    private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    /// so `deinit` can remove them from the correct center. `nonisolated(unsafe)`
+    /// is required because the class is `@MainActor` and the `deinit` is
+    /// evaluated as non-isolated, even though `AppState` is app-lifetime.
+    nonisolated(unsafe) private var observerTokens: [(center: NotificationCenter, token: NSObjectProtocol)] = []
 
     /// Injectable for tests (`PollCadence.Context` inputs). `NSApp` is nil
     /// while the SwiftUI `App` struct (and thus AppState) is constructed —
