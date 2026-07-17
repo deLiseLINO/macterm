@@ -180,6 +180,11 @@ final class AppState {
     /// session kills without a real daemon.
     @ObservationIgnored
     var zmx: ZmxClient = .live
+    /// Decides which restored panes should resume their agent sessions after
+    /// the workspace is rebuilt. The coordinator's capture must run before any
+    /// `zmx attach` changes the live session list.
+    @ObservationIgnored
+    private let agentResumeCoordinator = AgentResumeCoordinator()
 
     /// Refresh policy for `ZmxForegroundResolver`'s name→leader-pid cache:
     /// refresh on session lifecycle events plus a 30s reconcile TTL — never
@@ -459,9 +464,11 @@ final class AppState {
 
     // MARK: - Restore / Save
 
-    func restoreSelection(projects: [Project]) {
+    func restoreSelection(projects: [Project]) async {
         logger.info("restoreSelection: \(projects.count, privacy: .public) projects")
         hasRestoredSelection = true
+        let preRestoreLiveSessionNames = await agentResumeCoordinator.capturePreRestoreLiveSessionNames()
+
         let snapshots = workspaceStore.load()
         let valid = Set(projects.map(\.id))
         // Restore every project's snapshot — including layout-file projects.
@@ -486,15 +493,19 @@ final class AppState {
             acknowledgeActiveTab(projectID: id)
             warmFocusedProject()
         }
-        // Sweep crash/force-quit orphans: kill zero-client macterm-* sessions
-        // no restored pane claims. Attach-aware and fail-closed (a failed
-        // probe reaps nothing); foreign prefixes (supa-*, user sessions) are
-        // spared. Quick-terminal sessions are never persisted, so leftovers
-        // from a crash die here too.
-        let known = Set(workspaces.values
+        // Sweep crash/force-quit orphans: kill macterm-* sessions no restored
+        // pane claims. Attach-aware and fail-closed (a failed probe reaps
+        // nothing); foreign prefixes (supa-*, user sessions) are spared.
+        // Quick-terminal sessions are never persisted, so leftovers from a
+        // crash die here too.
+        let allRestoredPanes = Array(workspaces.values
             .flatMap(\.tabs)
-            .flatMap { $0.splitRoot.allPanes() }
-            .map(\.sessionName))
+            .flatMap { $0.splitRoot.allPanes() })
+        let known = Set(allRestoredPanes.map(\.sessionName))
+        await agentResumeCoordinator.resumeRestoredAgents(
+            allRestoredPanes,
+            preRestoreLiveSessionNames: preRestoreLiveSessionNames
+        )
         Task { [zmx] in await zmx.reapOrphans(knownSessionNames: known) }
     }
 
