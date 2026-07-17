@@ -52,4 +52,3 @@ enum AgentResumeCommand {
         return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
-
