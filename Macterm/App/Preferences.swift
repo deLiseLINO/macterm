@@ -437,9 +437,8 @@ final class Preferences {
         static let windowGlassEnabled = "macterm.window.glassEnabled"
         static let windowGlassStyle = "macterm.window.glassStyle"
         static let userGhosttyConfigPath = "macterm.ghostty.userConfigPath"
-        static let quickTerminalEnabled = "macterm.quickTerminal.enabled"
-        static let quickTerminalWidth = "macterm.quickTerminal.width"
         static let quickTerminalHeight = "macterm.quickTerminal.height"
+        static let activeProjectID = "macterm.activeProjectID"
         static let showTabStatusIndicator = "macterm.sidebar.showTabStatusIndicator"
         static let notifyOnCommandCompletion = "macterm.notifications.commandCompletion"
 
