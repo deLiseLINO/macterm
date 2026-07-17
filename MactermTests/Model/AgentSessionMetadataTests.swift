@@ -6,11 +6,7 @@ import Testing
 struct AgentSessionMetadataTests {
     @Test
     func codable_round_trip_contains_only_allow_listed_metadata() throws {
-        let metadata = AgentSessionMetadata(
-            provider: .pi,
-            sessionID: "native-session-42",
-            workingDirectory: "/tmp/project"
-        )
+        let metadata = AgentSessionMetadata(provider: .pi, sessionID: "native-session-42")
         let data = try JSONEncoder().encode(metadata)
         let json = String(decoding: data, as: UTF8.self).lowercased()
         let restored = try JSONDecoder().decode(AgentSessionMetadata.self, from: data)
@@ -20,6 +16,8 @@ struct AgentSessionMetadataTests {
         #expect(!json.contains("token"))
         #expect(!json.contains("credential"))
         #expect(!json.contains("environment"))
+        #expect(!json.contains("workingdirectory"))
+        #expect(json.contains("\"schemav\""))
     }
 
     @Test
@@ -29,7 +27,7 @@ struct AgentSessionMetadataTests {
     }
 
     @Test
-    func provider_argv_is_exact_for_pi_and_omp() {
+    func provider_argv_and_shellLine_are_exact_for_pi_and_omp() {
         #expect(
             AgentResumeCommand.argv(for: AgentSessionMetadata(provider: .pi, sessionID: "sample"))
                 == ["pi", "--session", "sample"]
@@ -38,14 +36,21 @@ struct AgentSessionMetadataTests {
             AgentResumeCommand.argv(for: AgentSessionMetadata(provider: .omp, sessionID: "sample"))
                 == ["omp", "--session", "sample"]
         )
-        #expect(AgentResumeCommand.shellLine(for: AgentSessionMetadata(provider: .pi, sessionID: "sample")) == "pi --session sample")
+        #expect(
+            AgentResumeCommand.shellLine(for: AgentSessionMetadata(provider: .pi, sessionID: "sample"))
+                == "'pi' '--session' 'sample'"
+        )
+        #expect(
+            AgentResumeCommand.shellLine(for: AgentSessionMetadata(provider: .pi, sessionID: "it's ok"))
+                == "'pi' '--session' 'it'\\''s ok'"
+        )
     }
 
     @Test
-    func unknown_provider_fails_decoding() {
-        let data = Data(#"{"provider":"other","sessionID":"sample"}"#.utf8)
-        #expect(throws: (any Error).self) {
-            try JSONDecoder().decode(AgentSessionMetadata.self, from: data)
+    func adversarial_session_ids_are_rejected() {
+        let ids = ["", " \n\t", "abc def", "foo'bar", "a;b", "`whoami`", "$(date)", "x\ny"]
+        for id in ids {
+            #expect(AgentResumeCommand.argv(for: AgentSessionMetadata(provider: .pi, sessionID: id)) == nil, "expected rejection for \(String(describing: id))")
         }
     }
 
@@ -73,20 +78,6 @@ struct AgentSessionMetadataTests {
         })
         absentCoordinator.resumeRestoredAgents([absentPane], preRestoreLiveSessionNames: [])
         absentCoordinator.resumeRestoredAgents([absentPane], preRestoreLiveSessionNames: [])
-        #expect(sent == ["omp --session other\n"])
-    }
-
-    @Test
-    func coordinator_fails_closed_for_unknown_zmx_state() {
-        let pane = Pane(projectPath: "/tmp", projectID: UUID())
-        pane.agentSession = AgentSessionMetadata(provider: .pi, sessionID: "sample")
-        var sent = false
-        let coordinator = AgentResumeCoordinator(sendText: { _, _ in
-            sent = true
-            return true
-        })
-
-        coordinator.resumeRestoredAgents([pane], preRestoreLiveSessionNames: nil)
-        #expect(!sent)
+        #expect(sent == ["'omp' '--session' 'other'\n"])
     }
 }

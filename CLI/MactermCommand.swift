@@ -401,9 +401,15 @@ struct PaneCommand: ParsableCommand {
         @OptionGroup var options: ConnectionOptions
 
         func run() throws {
+            let trimmed = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard (try? AgentResumeCommand.validSessionIDPattern.wholeMatch(in: trimmed)) != nil
+            else {
+                Output.printError("--session-id contains invalid characters")
+                throw ExitCode(1)
+            }
             var args = target.controlArgs()
             args.agentProvider = provider
-            args.agentSessionID = sessionID
+            args.agentSessionID = trimmed
             try runControlCommand(command: "pane.agent-set", args: args, options: options)
         }
     }

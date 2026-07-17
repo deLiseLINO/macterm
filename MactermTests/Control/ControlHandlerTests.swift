@@ -749,6 +749,12 @@ struct ControlHandlerTests {
             args: ControlArgs(pane: "pane:99", agentProvider: "pi", agentSessionID: "sample")
         ))
         #expect(unknownPane.error?.code == .notFound)
+
+        let invalidSessionID = await handler.handle(request(
+            "pane.agent-set",
+            args: ControlArgs(pane: "pane:1", agentProvider: "pi", agentSessionID: "bad;id")
+        ))
+        #expect(invalidSessionID.error?.code == .badRequest)
     }
 }
 

@@ -12,37 +12,44 @@ typealias AgentSessionProvider = AgentProvider
 struct AgentSessionMetadata: Codable, Equatable, Sendable {
     typealias Provider = AgentProvider
 
+    static let schemaVersion: Int = 1
+
     let provider: AgentProvider
     let sessionID: String
-    let workingDirectory: String?
 
-    init(provider: AgentProvider, sessionID: String, workingDirectory: String? = nil) {
+    init(provider: AgentProvider, sessionID: String) {
         self.provider = provider
         self.sessionID = sessionID
-        self.workingDirectory = workingDirectory
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case sessionID
     }
 }
 
 enum AgentResumeCommand {
+    static let validSessionIDPattern = /^[A-Za-z0-9._:@\-]{1,128}$/
+
     static func argv(for metadata: AgentSessionMetadata) -> [String]? {
-        guard !metadata.sessionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmed = metadata.sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              (try? validSessionIDPattern.wholeMatch(in: trimmed)) != nil
+        else {
             return nil
         }
-        return [metadata.provider.executable, "--session", metadata.sessionID]
+        return [metadata.provider.executable, "--session", trimmed]
     }
 
     static func shellLine(for metadata: AgentSessionMetadata) -> String? {
         guard let argv = argv(for: metadata) else { return nil }
-        return argv.map(shellEscape).joined(separator: " ")
+        return argv.compactMap(singleQuoteEscape).joined(separator: " ")
     }
 
-    private static func shellEscape(_ argument: String) -> String {
-        let safeCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_./:@%+=,-"))
-        guard !argument.isEmpty,
-              argument.unicodeScalars.allSatisfy(safeCharacters.contains)
-        else {
-            return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        }
-        return argument
+    private static func singleQuoteEscape(_ argument: String) -> String? {
+        guard !argument.unicodeScalars.contains(where: { $0 == "\u{0000}" || $0 == "\n" || $0 == "\r" })
+        else { return nil }
+        return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
+

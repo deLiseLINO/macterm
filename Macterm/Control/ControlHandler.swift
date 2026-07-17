@@ -410,17 +410,19 @@ final class ControlHandler {
                 message: "pane.agent-set provider must be pi or omp"
             )
         }
-        guard let sessionID = args.agentSessionID,
-              !sessionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let trimmed = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (try? AgentResumeCommand.validSessionIDPattern.wholeMatch(in: trimmed)) != nil
         else {
-            throw ControlError(code: .badRequest, message: "pane.agent-set requires --session-id")
+            throw ControlError(
+                code: .badRequest,
+                message: "pane.agent-set --session-id contains invalid characters"
+            )
         }
         let (_, workspace) = try resolveWorkspace(args)
         let target = try resolvePane(args, in: workspace)
         target.pane.agentSession = AgentSessionMetadata(
             provider: provider,
-            sessionID: sessionID,
-            workingDirectory: target.pane.nsView?.currentPwd
+            sessionID: sessionID
         )
         appState.saveWorkspaces()
         return ControlData(panes: [paneInfo(target.pane, in: target.tab, workspace: workspace)])

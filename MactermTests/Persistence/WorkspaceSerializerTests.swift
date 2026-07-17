@@ -411,8 +411,7 @@ struct WorkspaceSerializerAgentSessionTests {
         let projectID = UUID()
         let metadata = AgentSessionMetadata(
             provider: .omp,
-            sessionID: "native-123",
-            workingDirectory: "/tmp/project"
+            sessionID: "native-123"
         )
         let pane = Pane(projectPath: "/tmp/project", projectID: projectID, agentSession: metadata)
         let tab = TerminalTab(id: UUID(), splitRoot: .pane(pane), focusedPaneID: pane.id)
