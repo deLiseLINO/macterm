@@ -9,10 +9,21 @@ permissions:
 jobs:
   build:
     name: Build macOS artifacts
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: Generate dummy Sparkle public key
+        id: sparkle
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm ed25519 -out /tmp/sparkle.pem
+          # Sparkle expects the raw 32-byte public key, not DER; DER is 12
+          # bytes header + 32 bytes key.
+          pubkey_b64=$(openssl pkey -in /tmp/sparkle.pem -pubout -outform DER \
+            | tail -c 32 | base64 | tr -d '\n')
+          echo "pubkey=$pubkey_b64" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -39,6 +50,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build CI artifacts
+        env:
+          SPARKLE_ED_PUBLIC_KEY: ${{ steps.sparkle.outputs.pubkey }}
         run: |
           VERSION="0.0.${{ github.run_number }}"
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -46,7 +59,6 @@ jobs:
             exit 1
           fi
           VERSION="$VERSION" ./scripts/build.sh
-
       - name: Verify packaged artifacts
         run: |
           set -euo pipefail
@@ -61,6 +73,9 @@ jobs:
           codesign --verify --deep --strict build/export/Macterm.app
           hdiutil imageinfo build/Macterm-*.dmg >/dev/null
 
+      - name: Create side-by-side test app
+        run: |
+          set -euo pipefail
           mkdir -p build/export-ci
           cp -R build/export/Macterm.app "build/export-ci/Macterm CI.app"
           INFO_PLIST="build/export-ci/Macterm CI.app/Contents/Info.plist"
