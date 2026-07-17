@@ -61,11 +61,32 @@ jobs:
           codesign --verify --deep --strict build/export/Macterm.app
           hdiutil imageinfo build/Macterm-*.dmg >/dev/null
 
-      - name: Upload app artifact
+      - name: Create side-by-side test app
+        run: |
+          set -euo pipefail
+          mkdir -p build/export-ci
+          cp -R build/export/Macterm.app "build/export-ci/Macterm CI.app"
+          INFO_PLIST="build/export-ci/Macterm CI.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c \"Set :CFBundleIdentifier com.thdxg.macterm.ci\" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c \"Set :CFBundleName 'Macterm CI'\" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c \"Set :CFBundleDisplayName 'Macterm CI'\" "$INFO_PLIST"
+          codesign -f -s - --deep --preserve-metadata=entitlements \
+            "build/export-ci/Macterm CI.app" >/dev/null 2>&1
+          codesign --verify --deep --strict "build/export-ci/Macterm CI.app"
+
+      - name: Upload release app artifact
         uses: actions/upload-artifact@v4
         with:
           name: macterm-app
           path: build/export/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload side-by-side app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macterm-app-ci
+          path: build/export-ci/
           if-no-files-found: error
           retention-days: 14
 

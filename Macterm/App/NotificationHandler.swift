@@ -39,19 +39,17 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
     @objc private func commandCompleted(_ notification: Notification) {
         handleCommandCompletion(notification)
     }
-    func requestAuthorization() {
+    nonisolated func requestAuthorization() {
         userNotificationCenter.requestAuthorization(options: [.alert]) { granted, error in
-            if let error {
-                logger.error("Macterm notification authorization failed: \(error.localizedDescription, privacy: .public)")
-            } else if !granted {
-                logger.notice("Macterm notification authorization denied")
+            Task { @MainActor in
+                if let error {
+                    logger.error("Macterm notification authorization failed: \(error.localizedDescription, privacy: .public)")
+                } else if !granted {
+                    logger.notice("Macterm notification authorization denied")
+                }
             }
         }
     }
-
-    private func handleCommandCompletion(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let projectID = userInfo[TerminalCommandCompletionUserInfoKey.projectID] as? String,
               let tabID = userInfo[TerminalCommandCompletionUserInfoKey.tabID] as? String,
               let paneID = userInfo[TerminalCommandCompletionUserInfoKey.paneID] as? String,
               UUID(uuidString: projectID) != nil,
