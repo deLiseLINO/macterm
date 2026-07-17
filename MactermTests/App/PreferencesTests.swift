@@ -51,4 +51,35 @@ struct PreferencesTests {
         let standardRecency = UserDefaults.standard.stringArray(forKey: "macterm.projectRecency") ?? []
         #expect(!standardRecency.contains(project.id.uuidString))
     }
+
+    @Test
+    func main_window_size_defaults_persist_and_clamp() {
+        let suiteName = "macterm.preferences-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let preferences = Preferences(defaults: defaults)
+        #expect(preferences.mainWindowWidth == 1200.0)
+        #expect(preferences.mainWindowHeight == 800.0)
+
+        preferences.mainWindowWidth = 1600
+        preferences.mainWindowHeight = 1000
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 1600.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 1000.0)
+
+        preferences.mainWindowWidth = 799
+        preferences.mainWindowHeight = 400
+        #expect(preferences.mainWindowWidth == 800.0)
+        #expect(preferences.mainWindowHeight == 500.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 800.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 500.0)
+
+        preferences.mainWindowWidth = 6001
+        preferences.mainWindowHeight = 4001
+        #expect(preferences.mainWindowWidth == 6000.0)
+        #expect(preferences.mainWindowHeight == 4000.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowWidth) == 6000.0)
+        #expect(defaults.double(forKey: Preferences.Keys.mainWindowHeight) == 4000.0)
+    }
 }
