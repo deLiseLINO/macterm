@@ -97,6 +97,32 @@ final class AppState {
     private var tabCycleIndex: Int = 0
     var isTabCycling: Bool { !tabCycleOrder.isEmpty }
 
+    @ObservationIgnored
+    private let closedTabStore: ClosedTabStore
+
+    var hasClosedTabs: Bool {
+        !closedTabStore.isEmpty
+    }
+
+    @discardableResult
+    func reopenLastClosedTab() -> Bool {
+        guard let entry = closedTabStore.consumeLatest(),
+              let ws = workspaces[entry.projectID]
+        else { return false }
+
+        let tab = WorkspaceSerializer.restoreTab(entry.tab, projectID: entry.projectID)
+        guard !tab.splitRoot.allPanes().isEmpty else { return false }
+        ws.adoptTab(tab)
+        activeProjectID = entry.projectID
+        saveWorkspaces()
+
+        if let focusedPaneID = tab.focusedPaneID {
+            let window = NSApp.keyWindow ?? (NSApp.delegate as? AppDelegate)?.mainWindow
+            FocusRestoration.restoreFocus(to: focusedPaneID, in: tab.splitRoot, window: window)
+        }
+        return true
+    }
+
     private let workspaceStore: WorkspaceStore
     private var autoTileObserver: Any?
 
@@ -214,10 +240,12 @@ final class AppState {
 
     init(
         workspaceStore: WorkspaceStore = WorkspaceStore(),
-        projectFiles: ProjectFileStore = ProjectFileStore()
+        projectFiles: ProjectFileStore = ProjectFileStore(),
+        closedTabStore: ClosedTabStore = ClosedTabStore()
     ) {
         self.workspaceStore = workspaceStore
         self.projectFiles = projectFiles
+        self.closedTabStore = closedTabStore
         let autoTileToken = NotificationCenter.default.addObserver(
             forName: .autoTilingEnabledDidChange,
             object: nil,
@@ -853,6 +881,17 @@ final class AppState {
               let tab = ws.tabs.first(where: { $0.id == tabID })
         else { return }
         logger.debug("closeTab: \(tabID, privacy: .public) project=\(projectID, privacy: .public)")
+        let closedSnapshot = ClosedTabEntry(
+            projectID: projectID,
+            closedAt: Date(),
+            tab: TabSnapshot(
+                id: tab.id,
+                customTitle: tab.customTitle,
+                focusedPaneID: tab.focusedPaneID,
+                splitRoot: WorkspaceSerializer.snapshotNode(tab.splitRoot)
+            )
+        )
+        _ = closedTabStore.record(closedSnapshot)
         for pane in tab.splitRoot.allPanes() {
             // Tab closed for good → its panes' zmx sessions die with it.
             pane.killPersistentSession(using: zmx)
