@@ -139,8 +139,8 @@ struct MactermApp: App {
                 }
         }
         .defaultSize(
-            width: Preferences.shared.mainWindowWidth,
-            height: Preferences.shared.mainWindowHeight
+            width: CGFloat(Preferences.shared.mainWindowWidth),
+            height: CGFloat(Preferences.shared.mainWindowHeight)
         )
         .commands {
             CommandGroup(replacing: .newItem) {

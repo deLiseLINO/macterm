@@ -89,9 +89,7 @@ final class Preferences {
                 minimum: Self.minMainWindowWidth,
                 maximum: Self.maxMainWindowWidth
             )
-            if mainWindowWidth != clamped {
-                mainWindowWidth = clamped
-            }
+            mainWindowWidth = clamped
             defaults.set(clamped, forKey: Keys.mainWindowWidth)
         }
     }
@@ -104,9 +102,7 @@ final class Preferences {
                 minimum: Self.minMainWindowHeight,
                 maximum: Self.maxMainWindowHeight
             )
-            if mainWindowHeight != clamped {
-                mainWindowHeight = clamped
-            }
+            mainWindowHeight = clamped
             defaults.set(clamped, forKey: Keys.mainWindowHeight)
         }
     }
