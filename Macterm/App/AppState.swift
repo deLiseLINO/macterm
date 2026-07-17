@@ -211,13 +211,22 @@ final class AppState {
     /// so tests never read or write the user's real directory.
     @ObservationIgnored
     let projectFiles: ProjectFileStore
+    @ObservationIgnored
+    private let completionNotificationCenter: NotificationCenter
+
+    @ObservationIgnored
+    var foregroundProcessRefresher: (Pane, Bool) -> Void = { pane, trackExecution in
+        pane.refreshForegroundProcess(trackExecution: trackExecution)
+    }
 
     init(
         workspaceStore: WorkspaceStore = WorkspaceStore(),
-        projectFiles: ProjectFileStore = ProjectFileStore()
+        projectFiles: ProjectFileStore = ProjectFileStore(),
+        notificationCenter: NotificationCenter = .default
     ) {
         self.workspaceStore = workspaceStore
         self.projectFiles = projectFiles
+        completionNotificationCenter = notificationCenter
         let autoTileToken = NotificationCenter.default.addObserver(
             forName: .autoTilingEnabledDidChange,
             object: nil,
@@ -381,6 +390,7 @@ final class AppState {
         for (projectID, ws) in workspaces {
             for tab in ws.tabs {
                 for pane in tab.splitRoot.allPanes() {
+                    let oldState = pane.executionState
                     seenPanes.insert(pane.id)
                     if pane.isRemote {
                         // The local process table only knows `ssh` here — a
@@ -393,11 +403,19 @@ final class AppState {
                             activeRemotePanes.append(pane)
                         }
                     } else {
-                        pane.refreshForegroundProcess(trackExecution: trackExecution)
+                        foregroundProcessRefresher(pane, trackExecution)
                     }
                     if trackExecution {
                         settleIfVisible(pane)
                     }
+                    let newState = pane.executionState
+                    emitCommandCompletionIfNeeded(
+                        projectID: projectID,
+                        tabID: tab.id,
+                        pane: pane,
+                        oldState: oldState,
+                        newState: newState
+                    )
                     if pane.executionState == .running { sawBusyPane = true }
                     didAcknowledgeCompletion = acknowledgeFinishedCommandIfActive(
                         paneID: pane.id,
@@ -413,6 +431,31 @@ final class AppState {
         if !activeRemotePanes.isEmpty, isAnyWindowVisible() {
             remoteForegroundResolver.refresh(panes: activeRemotePanes, probe: zmx.remoteForegroundComms)
         }
+    }
+    private func emitCommandCompletionIfNeeded(
+        projectID: UUID,
+        tabID: UUID,
+        pane: Pane,
+        oldState: TerminalExecutionState,
+        newState: TerminalExecutionState
+    ) {
+        guard oldState == .running, newState == .done else { return }
+        let label = pane.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        completionNotificationCenter.post(
+            name: .terminalCommandCompleted,
+            object: nil,
+            userInfo: [
+                TerminalCommandCompletionUserInfoKey.projectID: projectID.uuidString,
+                TerminalCommandCompletionUserInfoKey.tabID: tabID.uuidString,
+                TerminalCommandCompletionUserInfoKey.paneID: pane.id.uuidString,
+                TerminalCommandCompletionUserInfoKey.label: label.isEmpty ? "Terminal command" : label,
+                TerminalCommandCompletionUserInfoKey.outcome: "success",
+                TerminalCommandCompletionUserInfoKey.isQuickTerminal:
+                    pane.projectID == QuickTerminalService.ephemeralProjectID,
+                TerminalCommandCompletionUserInfoKey.completionTimestamp:
+                    String(format: "%.6f", Date().timeIntervalSince1970)
+            ]
+        )
     }
 
     /// Quiet-settle only while the surface actually renders: an occluded pane
