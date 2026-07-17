@@ -14,6 +14,7 @@ enum AppCommand: String, CaseIterable, Identifiable {
     case nextTab
     case previousTab
     case recentTab
+    case reopenClosedTab
     // Panes
     case splitRight
     case splitDown
@@ -59,6 +60,7 @@ enum AppCommand: String, CaseIterable, Identifiable {
         case .nextTab: "Next Tab"
         case .previousTab: "Previous Tab"
         case .recentTab: "Recent Tab"
+        case .reopenClosedTab: "Reopen Closed Tab"
         case .splitRight: "Split Right"
         case .splitDown: "Split Down"
         case .splitAuto: "Split Automatically"
@@ -100,7 +102,8 @@ enum AppCommand: String, CaseIterable, Identifiable {
              .renameTab,
              .nextTab,
              .previousTab,
-             .recentTab: .tabs
+             .recentTab,
+             .reopenClosedTab: .tabs
         case .splitRight,
              .splitDown,
              .splitAuto,
@@ -144,6 +147,7 @@ enum AppCommand: String, CaseIterable, Identifiable {
         case .nextTab: .nextGlobalTab
         case .previousTab: .previousGlobalTab
         case .recentTab: .recentTab
+        case .reopenClosedTab: .reopenClosedTab
         case .splitRight: .splitRight
         case .splitDown: .splitDown
         case .splitAuto: .splitAuto

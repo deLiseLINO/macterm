@@ -37,6 +37,9 @@ extension AppCommand {
         case .recentTab:
             guard let projectID else { return nil }
             return { ctx.appState.cycleRecentTab(projectID: projectID) }
+        case .reopenClosedTab:
+            guard ctx.appState.hasClosedTabs else { return nil }
+            return { _ = ctx.appState.reopenLastClosedTab() }
         case .renameTab:
             guard let projectID,
                   let tab = ctx.appState.workspaces[projectID]?.activeTab

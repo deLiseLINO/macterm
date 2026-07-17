@@ -203,6 +203,12 @@ struct MactermApp: App {
                 AppCommandMenuItem(command: .nextTab, appState: appState, projectStore: projectStore, titleOverride: "Next Tab")
                 AppCommandMenuItem(command: .previousTab, appState: appState, projectStore: projectStore, titleOverride: "Previous Tab")
                 AppCommandMenuItem(command: .recentTab, appState: appState, projectStore: projectStore, titleOverride: "Recent Tab")
+                AppCommandMenuItem(
+                    command: .reopenClosedTab,
+                    appState: appState,
+                    projectStore: projectStore,
+                    titleOverride: "Reopen Closed Tab"
+                )
             }
             CommandMenu("Project") {
                 AppCommandMenuItem(command: .openProject, appState: appState, projectStore: projectStore, titleOverride: "New Project…")
