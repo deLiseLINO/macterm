@@ -9,12 +9,12 @@ permissions:
 jobs:
   build:
     name: Build macOS artifacts
-    runs-on: macos-26
+    runs-on: macos-15
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - uses: jdx/mise-action@v4
 
@@ -62,7 +62,7 @@ jobs:
           hdiutil imageinfo build/Macterm-*.dmg >/dev/null
 
       - name: Upload app artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: macterm-app
           path: build/export/Macterm.app
@@ -70,7 +70,7 @@ jobs:
           retention-days: 14
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: macterm-dmg
           path: build/Macterm-*.dmg
