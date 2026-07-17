@@ -13,4 +13,15 @@ extension Notification.Name {
     /// `ZmxForegroundResolver` name→leader-pid cache is stale. Observed by
     /// `AppState`, which invalidates its `ZmxRefreshGate` and wakes the poll.
     static let zmxSessionsChanged = Notification.Name("MactermZmxSessionsChanged")
+    static let terminalCommandCompleted = Notification.Name("MactermTerminalCommandCompleted")
+}
+
+enum TerminalCommandCompletionUserInfoKey {
+    static let projectID = "projectID"
+    static let tabID = "tabID"
+    static let paneID = "paneID"
+    static let label = "label"
+    static let outcome = "outcome"
+    static let isQuickTerminal = "isQuickTerminal"
+    static let completionTimestamp = "completionTimestamp"
 }

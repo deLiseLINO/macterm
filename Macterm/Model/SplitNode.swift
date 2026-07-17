@@ -52,6 +52,12 @@ enum TerminalExecutionState: Equatable {
     case done
 }
 
+enum TerminalCommandOutcome: String, Equatable, Sendable {
+    case success
+    case error
+    case cancelled
+}
+
 private struct ForegroundProcessKey: Equatable {
     let name: String
     let pid: pid_t?
@@ -344,6 +350,25 @@ final class Pane: Identifiable {
             NotificationCenter.default.post(name: .terminalPollEvent, object: nil)
         }
     }
+    /// Outcome of the most recently finished command, captured from the
+    /// terminal surface `exitCode` and consumed by command-completion
+    /// notifications. Reset to `nil` when a new command starts.
+    private(set) var lastCommandOutcome: TerminalCommandOutcome?
+
+    func recordCommandOutcome(exitCode: Int) {
+        if exitCode < 0 {
+            lastCommandOutcome = .cancelled
+        } else if exitCode == 0 {
+            lastCommandOutcome = .success
+        } else {
+            lastCommandOutcome = .error
+        }
+    }
+
+    func markCommandRunning() {
+        lastCommandOutcome = nil
+        executionState = executionTracker.markProgressStarted(currentState: executionState)
+    }
 
     @ObservationIgnored
     private var executionTracker = TerminalExecutionTracker()
@@ -409,9 +434,6 @@ final class Pane: Identifiable {
         )
     }
 
-    func markCommandRunning() {
-        executionState = executionTracker.markProgressStarted(currentState: executionState)
-    }
 
     func markCommandFinished() {
         executionState = executionTracker.markCommandFinished(currentState: executionState)
