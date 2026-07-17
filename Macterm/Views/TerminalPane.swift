@@ -224,18 +224,22 @@ private struct TerminalSurface: NSViewRepresentable {
         }
     }
 
-    /// Post a user notification for a pane, with the single routing-critical
-    /// `userInfo` contract (paneID / projectID / isQuickTerminal) defined ONCE
-    /// so the desktop-notification and command-finished paths can't drift and
-    /// silently break tap-routing for one of them.
+    /// Post a user notification for a pane using the same `userInfo`
+    /// contract as command-completion notifications so both paths route
+    /// taps through `NotificationHandler` consistently. `tabID` is not
+    /// available at this layer, so `NotificationHandler` resolves it from
+    /// the `projectID` + `paneID` pair as a fallback.
     private static func postPaneNotification(pane: Pane, title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.userInfo = [
-            "paneID": pane.id.uuidString,
-            "projectID": pane.projectID.uuidString,
-            "isQuickTerminal": pane.projectID == QuickTerminalService.ephemeralProjectID,
+            TerminalCommandCompletionUserInfoKey.projectID: pane.projectID.uuidString,
+            TerminalCommandCompletionUserInfoKey.paneID: pane.id.uuidString,
+            TerminalCommandCompletionUserInfoKey.label: pane.displayTitle,
+            TerminalCommandCompletionUserInfoKey.isQuickTerminal:
+                pane.projectID == QuickTerminalService.ephemeralProjectID,
+            TerminalCommandCompletionUserInfoKey.outcome: "success"
         ]
         let request = UNNotificationRequest(
             identifier: "macterm-\(pane.id.uuidString)-\(UUID().uuidString)",

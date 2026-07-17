@@ -107,23 +107,22 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
         completionHandler()
 
         guard let paneIDString, let paneID = UUID(uuidString: paneIDString),
-              let projectIDString, let projectID = UUID(uuidString: projectIDString),
-              let tabIDString, let tabID = UUID(uuidString: tabIDString)
+              let projectIDString, let projectID = UUID(uuidString: projectIDString)
         else { return }
         Task { @MainActor in
             Self.shared.handleTap(
                 paneID: paneID,
-                tabID: tabID,
+                tabID: tabIDString.flatMap(UUID.init(uuidString:)),
                 projectID: projectID,
                 isQuickTerminal: isQuickTerminal
             )
         }
     }
 
-    private func handleTap(paneID: UUID, tabID: UUID, projectID: UUID, isQuickTerminal: Bool) {
+    private func handleTap(paneID: UUID, tabID: UUID?, projectID: UUID, isQuickTerminal: Bool) {
         if isQuickTerminal {
             let tab = QuickTerminalService.shared.splitState.tab
-            guard tab.id == tabID, tab.splitRoot.findPane(id: paneID) != nil else { return }
+            guard tab.splitRoot.findPane(id: paneID) != nil else { return }
             QuickTerminalService.shared.showPanel()
             tab.focusPane(paneID)
             FocusRestoration.restoreFocus(
@@ -133,10 +132,17 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
             )
         } else {
             guard let appState,
-                  let workspace = appState.workspaces[projectID],
-                  let tab = workspace.tabs.first(where: { $0.id == tabID }),
-                  tab.splitRoot.findPane(id: paneID) != nil
+                  let workspace = appState.workspaces[projectID]
             else { return }
+            let tab: TerminalTab
+            if let tabID {
+                guard let found = workspace.tabs.first(where: { $0.id == tabID }) else { return }
+                tab = found
+            } else {
+                guard let found = workspace.tabs.first(where: { $0.splitRoot.findPane(id: paneID) != nil }) else { return }
+                tab = found
+            }
+            guard tab.splitRoot.findPane(id: paneID) != nil else { return }
             appState.navigateToPane(paneID, projectID: projectID)
         }
     }
