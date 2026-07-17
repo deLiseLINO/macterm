@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macterm-app
-          path: build/export/Macterm.app
+          path: build/export/
           if-no-files-found: error
           retention-days: 14
 
