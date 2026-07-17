@@ -29,7 +29,7 @@ struct AgentSessionMetadata: Codable, Equatable, Sendable {
 }
 
 enum AgentResumeCommand {
-    static let validSessionIDPattern = /^[A-Za-z0-9._:@\-]{1,128}$/
+    nonisolated(unsafe) static let validSessionIDPattern = /^[A-Za-z0-9._:@\-]{1,128}$/
 
     static func argv(for metadata: AgentSessionMetadata) -> [String]? {
         let trimmed = metadata.sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
