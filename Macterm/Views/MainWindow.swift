@@ -67,7 +67,7 @@ struct MainWindow: View {
         }
         .task {
             guard !appState.hasRestoredSelection else { return }
-            appState.restoreSelection(projects: projectStore.projects)
+            await appState.restoreSelection(projects: projectStore.projects)
         }
         .onChange(of: appState.sidebarVisible) { _, visible in
             withAnimation {

@@ -70,6 +70,8 @@ final class ControlHandler {
         case "pane.focus": return try paneFocus(args)
         case "pane.close": return try paneClose(args)
         case "pane.run": return try paneRun(args)
+        case "pane.agent-set": return try paneAgentSet(args)
+
         case "pane.zoom": return try paneZoom(args)
         case "pane.resize-split": return try paneResizeSplit(args)
         #if DEBUG
@@ -389,6 +391,44 @@ final class ControlHandler {
         }
         appState.closePane(target.pane.id, projectID: project.id)
         return ControlData()
+    }
+
+    private func paneAgentSet(_ args: ControlArgs) throws -> ControlData {
+        let hasSelector = args.pane?.isEmpty == false || args.session?.isEmpty == false
+        guard hasSelector else {
+            throw ControlError(
+                code: .badRequest,
+                message: "pane.agent-set requires --pane, --session, or MACTERM_SESSION"
+            )
+        }
+        guard let rawProvider = args.agentProvider, !rawProvider.isEmpty else {
+            throw ControlError(code: .badRequest, message: "pane.agent-set requires --provider pi|omp")
+        }
+        guard let provider = AgentProvider(rawValue: rawProvider) else {
+            throw ControlError(
+                code: .badRequest,
+                message: "pane.agent-set provider must be pi or omp"
+            )
+        }
+        guard let rawSessionID = args.agentSessionID, !rawSessionID.isEmpty else {
+            throw ControlError(code: .badRequest, message: "pane.agent-set requires --session-id")
+        }
+        let trimmed = rawSessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (try? AgentResumeCommand.validSessionIDPattern.wholeMatch(in: trimmed)) != nil
+        else {
+            throw ControlError(
+                code: .badRequest,
+                message: "pane.agent-set --session-id contains invalid characters"
+            )
+        }
+        let (_, workspace) = try resolveWorkspace(args)
+        let target = try resolvePane(args, in: workspace)
+        target.pane.agentSession = AgentSessionMetadata(
+            provider: provider,
+            sessionID: trimmed
+        )
+        appState.saveWorkspaces()
+        return ControlData(panes: [paneInfo(target.pane, in: target.tab, workspace: workspace)])
     }
 
     private func paneRun(_ args: ControlArgs) throws -> ControlData {
