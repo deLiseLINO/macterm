@@ -95,6 +95,10 @@ struct ControlArgs: Codable, Equatable {
     var axis: String?
     /// Absolute split ratio in 0.15…0.85 (`pane.resize-split`).
     var ratio: Double?
+    /// Key chord to send (`pane.key`): a `HotkeyRegistry`-grammar string such as
+    /// `ctrl+c`, `escape`, `up`, or `ctrl+\` — delivered through libghostty's
+    /// key-encoding path, not the text-paste path `run` uses.
+    var key: String?
 
     init(
         project: String? = nil,
@@ -113,7 +117,8 @@ struct ControlArgs: Codable, Equatable {
         axis: String? = nil,
         ratio: Double? = nil,
         agentProvider: String? = nil,
-        agentSessionID: String? = nil
+        agentSessionID: String? = nil,
+        key: String? = nil
     ) {
         self.project = project
         self.tab = tab
@@ -132,6 +137,7 @@ struct ControlArgs: Codable, Equatable {
         self.scrollback = scrollback
         self.axis = axis
         self.ratio = ratio
+        self.key = key
     }
 }
 

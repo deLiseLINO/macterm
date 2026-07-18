@@ -265,6 +265,7 @@ struct PaneCommand: ParsableCommand {
         var subs: [ParsableCommand.Type] = [
             List.self, Inspect.self, Dump.self, Split.self, Focus.self,
             Close.self, Run.self, AgentSet.self, Zoom.self, ResizeSplit.self,
+            Close.self, Run.self, Key.self, Zoom.self, ResizeSplit.self,
         ]
 
         #if DEBUG
@@ -411,6 +412,41 @@ struct PaneCommand: ParsableCommand {
             args.agentProvider = provider
             args.agentSessionID = trimmed
             try runControlCommand(command: "pane.agent-set", args: args, options: options)
+        }
+    }
+
+    struct Key: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Send a key chord to a live pane (control/named keys, not text).",
+            discussion: """
+            Delivers a single key press through the terminal's key-encoding path \
+            — the counterpart to `pane run`, which pastes text. Use it for control \
+            keys and named keys that have no literal text form.
+
+            The chord grammar matches keybinds: modifiers ctrl/cmd/shift/opt joined \
+            with '+', then one key token. Examples:
+
+              macterm pane key ctrl+c          # interrupt the foreground process
+              macterm pane key escape          # send Esc to a TUI
+              macterm pane key up              # arrow key (mode-aware encoding)
+              macterm pane key 'ctrl+\\'        # SIGQUIT char (quote for the shell)
+              macterm pane key enter           # submit (alias of 'return')
+
+            With no pane/tab/session selector it targets the current pane via \
+            $MACTERM_SESSION.
+            """
+        )
+
+        @Argument(help: "The key chord, e.g. ctrl+c, escape, up, ctrl+\\.")
+        var chord: String
+
+        @OptionGroup var target: PaneTarget
+        @OptionGroup var options: ConnectionOptions
+
+        func run() throws {
+            var args = target.controlArgs()
+            args.key = chord
+            try runControlCommand(command: "pane.key", args: args, options: options)
         }
     }
 
