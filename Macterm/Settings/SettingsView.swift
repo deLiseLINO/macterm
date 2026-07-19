@@ -34,6 +34,8 @@ private struct GeneralSettings: View {
     @State private var terminateSessionsOnQuit: Bool = Preferences.shared.terminateSessionsOnQuit
     @State private var closedTabGracePeriod: Double = Preferences.shared.closedTabGracePeriod
 
+    private let sliderLabelWidth: CGFloat = 126
+
     /// Why session persistence is inactive, when it is. Missing binary is a
     /// dev-build state; an over-budget socket path is an environment problem
     /// (very long home/TMPDIR paths push past sun_path).
