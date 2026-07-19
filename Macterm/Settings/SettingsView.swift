@@ -143,6 +143,29 @@ private struct GeneralSettings: View {
                     .foregroundStyle(MactermTheme.warning)
                 }
             }
+
+            Section("Closed Tabs") {
+                Stepper(
+                    value: $closedTabGracePeriod,
+                    in: Preferences.minClosedTabGracePeriod ... Preferences.maxClosedTabGracePeriod,
+                    step: 5
+                ) {
+                    HStack {
+                        Text("Grace period")
+                            .frame(width: sliderLabelWidth, alignment: .leading)
+                        Spacer()
+                        Text("\(Int(closedTabGracePeriod)) sec")
+                            .monospacedDigit()
+                    }
+                }
+                .onChange(of: closedTabGracePeriod) { _, v in
+                    Preferences.shared.closedTabGracePeriod = v
+                    closedTabGracePeriod = Preferences.shared.closedTabGracePeriod
+                }
+                Text("How long a closed tab's process keeps running so Cmd+Shift+T can bring it back. After this elapses, the session is cleaned up.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }
@@ -358,28 +381,7 @@ private struct AppearanceSettings: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Closed Tabs") {
-                Stepper(
-                    value: $closedTabGracePeriod,
-                    in: Preferences.minClosedTabGracePeriod ... Preferences.maxClosedTabGracePeriod,
-                    step: 5
-                ) {
-                    HStack {
-                        Text("Grace period")
-                            .frame(width: sliderLabelWidth, alignment: .leading)
-                        Spacer()
-                        Text("\(Int(closedTabGracePeriod)) sec")
-                            .monospacedDigit()
-                    }
-                }
-                .onChange(of: closedTabGracePeriod) { _, v in
-                    Preferences.shared.closedTabGracePeriod = v
-                    closedTabGracePeriod = Preferences.shared.closedTabGracePeriod
-                }
-                Text("How long a closed tab's process keeps running so Cmd+Shift+T can bring it back. After this elapses, the session is cleaned up.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+
 
             Section("Sidebar") {
                 Picker("Project icon", selection: $projectIconSymbol) {
