@@ -966,15 +966,17 @@ final class AppState {
         )
         _ = closedTabStore.record(closedSnapshot)
         for pane in tab.splitRoot.allPanes() {
-            // Tab is gone from the workspace, but the pane's zmx session is
-            // preserved for the grace window (Preferences.closedTabGracePeriod)
-            // so Cmd+Shift+T can reattach to the running process. `ClosedTabStore`
-            // reaps the session lazily once the TTL elapses; pane-level
-            // `removePane` (single pane close) still kills the session
-            // immediately because that path is an explicit "I want this gone".
-            pane.destroySurface()
+            // Tab is gone from the workspace, but the pane's shell inside its
+            // zmx session keeps running. We do NOT destroy the surface here:
+            // closing the pty would send SIGHUP to the shell, killing both the
+            // shell and the foreground process inside it. The NSView/surface
+            // remains alive (owned by `Pane`) for the grace window; on reopen
+            // the tab is re-adopted and the surface reattaches to a window.
+            // `ClosedTabStore` reaps the session lazily once the TTL elapses.
+            // pane-level `removePane` (single pane close) still calls
+            // destroySurface + killPersistentSession — that path is an
+            // explicit "I want this gone".
         }
-        ws.closeTab(tabID)
     }
 
     func closeTab(_ tabID: UUID, projectID: UUID) {
