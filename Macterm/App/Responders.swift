@@ -289,7 +289,7 @@ final class MainAppResponder: KeyResponder {
         // Rename defers begin-editing a tick (see AppCommandActions) so the
         // sidebar row's TextField exists before it takes first responder;
         // copySessionID writes the focused pane's zmx name to the pasteboard.
-        for action in [HotkeyAction.renameTab, .renameProject, .copySessionID] {
+        for action in [HotkeyAction.renameTab, .renameProject, .copySessionID, .reopenClosedTab] {
             guard HotkeyRegistry.matches(event, action: action),
                   let command = AppCommand.allCases.first(where: { $0.hotkeyAction == action })
             else { continue }
