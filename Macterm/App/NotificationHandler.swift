@@ -41,10 +41,15 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
     }
     func requestAuthorization() {
         userNotificationCenter.requestAuthorization(options: [.alert]) { granted, error in
-            if let error {
-                logger.error("Macterm notification authorization failed: \(error.localizedDescription, privacy: .public)")
-            } else if !granted {
-                logger.notice("Macterm notification authorization denied")
+            // The UNUserNotificationCenter completion handler may fire on
+            // an arbitrary queue. Hop to the main actor before touching any
+            // @MainActor-isolated state.
+            Task { @MainActor in
+                if let error {
+                    logger.error("Macterm notification authorization failed: \(error.localizedDescription, privacy: .public)")
+                } else if !granted {
+                    logger.notice("Macterm notification authorization denied")
+                }
             }
         }
     }
