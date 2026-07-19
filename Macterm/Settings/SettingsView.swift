@@ -32,6 +32,7 @@ private struct GeneralSettings: View {
     @State private var autoTilingEnabled: Bool = Preferences.shared.autoTilingEnabled
     @State private var eagerlyStartProjectTabs: Bool = Preferences.shared.eagerlyStartProjectTabs
     @State private var terminateSessionsOnQuit: Bool = Preferences.shared.terminateSessionsOnQuit
+    @State private var closedTabGracePeriod: Double = Preferences.shared.closedTabGracePeriod
 
     /// Why session persistence is inactive, when it is. Missing binary is a
     /// dev-build state; an over-budget socket path is an environment problem
@@ -353,6 +354,29 @@ private struct AppearanceSettings: View {
                     Preferences.shared.paneDimOpacity = v
                 }
                 Text("How dark unfocused panes get in a split layout.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Closed Tabs") {
+                Stepper(
+                    value: $closedTabGracePeriod,
+                    in: Preferences.minClosedTabGracePeriod ... Preferences.maxClosedTabGracePeriod,
+                    step: 5
+                ) {
+                    HStack {
+                        Text("Grace period")
+                            .frame(width: sliderLabelWidth, alignment: .leading)
+                        Spacer()
+                        Text("\(Int(closedTabGracePeriod)) sec")
+                            .monospacedDigit()
+                    }
+                }
+                .onChange(of: closedTabGracePeriod) { _, v in
+                    Preferences.shared.closedTabGracePeriod = v
+                    closedTabGracePeriod = Preferences.shared.closedTabGracePeriod
+                }
+                Text("How long a closed tab's process keeps running so Cmd+Shift+T can bring it back. After this elapses, the session is cleaned up.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

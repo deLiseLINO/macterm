@@ -254,12 +254,15 @@ final class AppState {
         workspaceStore: WorkspaceStore = WorkspaceStore(),
         projectFiles: ProjectFileStore = ProjectFileStore(),
         notificationCenter: NotificationCenter = .default,
-        closedTabStore: ClosedTabStore = ClosedTabStore()
+        closedTabStore: ClosedTabStore? = nil
     ) {
+        let resolvedClosedTabStore = closedTabStore ?? ClosedTabStore(
+            expiration: Preferences.shared.closedTabGracePeriod
+        )
+        self.closedTabStore = resolvedClosedTabStore
         self.workspaceStore = workspaceStore
         self.projectFiles = projectFiles
         completionNotificationCenter = notificationCenter
-        self.closedTabStore = closedTabStore
         let autoTileToken = NotificationCenter.default.addObserver(
             forName: .autoTilingEnabledDidChange,
             object: nil,
@@ -343,7 +346,22 @@ final class AppState {
         pollCadence.notePolled(at: Date())
         refreshZmxCacheIfDue()
         refreshAllForegroundProcesses()
+        reapExpiredClosedSessions()
         reschedulePoll()
+    }
+
+    /// Lazy reap: when the foreground poll fires, sweep the closed-tab store
+    /// for entries whose grace period elapsed and `zmx kill` each one. Keeps
+    /// the daemon from accumulating orphans without a dedicated timer.
+    private func reapExpiredClosedSessions() {
+        let dropped = closedTabStore.pruneExpired()
+        guard !dropped.isEmpty else { return }
+        Task { [weak self] in
+            for name in dropped {
+                guard let self else { return }
+                await self.zmx.killSession(name)
+            }
+        }
     }
 
     /// Refresh `ZmxForegroundResolver`'s name→leader-pid cache when the gate
@@ -948,8 +966,12 @@ final class AppState {
         )
         _ = closedTabStore.record(closedSnapshot)
         for pane in tab.splitRoot.allPanes() {
-            // Tab closed for good → its panes' zmx sessions die with it.
-            pane.killPersistentSession(using: zmx)
+            // Tab is gone from the workspace, but the pane's zmx session is
+            // preserved for the grace window (Preferences.closedTabGracePeriod)
+            // so Cmd+Shift+T can reattach to the running process. `ClosedTabStore`
+            // reaps the session lazily once the TTL elapses; pane-level
+            // `removePane` (single pane close) still kills the session
+            // immediately because that path is an explicit "I want this gone".
             pane.destroySurface()
         }
         ws.closeTab(tabID)

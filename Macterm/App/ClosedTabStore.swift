@@ -16,16 +16,21 @@ struct ClosedTabsFile: Codable {
 
 final class ClosedTabStore {
     static let capacity = 10
-    static let expiration: TimeInterval = 10 * 60
 
     private let fileURL: URL
     private let now: () -> Date
+    private let expiration: TimeInterval
     private(set) var entries: [ClosedTabEntry] = []
     private(set) var loadFailed = false
 
-    init(fileURL: URL = FileStorage.fileURL(filename: "closed_tabs_v1.json"), now: @escaping () -> Date = Date.init) {
+    init(
+        fileURL: URL = FileStorage.fileURL(filename: "closed_tabs_v1.json"),
+        expiration: TimeInterval,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.fileURL = fileURL
         self.now = now
+        self.expiration = expiration
         load()
     }
 
@@ -62,18 +67,37 @@ final class ClosedTabStore {
         return entry
     }
 
-    private func validEntries() -> [ClosedTabEntry] {
-        let cutoff = now().addingTimeInterval(-Self.expiration)
-        return entries.filter { $0.closedAt > cutoff }
-    }
-
-    private func pruneExpired() {
-        guard !loadFailed else { return }
-        let valid = validEntries()
-        guard valid.count != entries.count else { return }
+    /// Drop entries whose `closedAt` is older than the configured TTL and return
+    /// the set of zmx session names that just lost their slot. The caller is
+    /// responsible for reaping those sessions (e.g. `await zmx.kill(sessionName:)`)
+    /// — keeping the daemon concern out of this pure store keeps the unit test
+    /// surface clean.
+    @discardableResult
+    func pruneExpired() -> Set<String> {
+        guard !loadFailed else { return [] }
+        let cutoff = now().addingTimeInterval(-expiration)
+        let valid = entries.filter { $0.closedAt > cutoff }
+        guard valid.count != entries.count else { return [] }
+        let dropped = entries.filter { $0.closedAt <= cutoff }
         if persist(valid) {
             entries = valid
         }
+        return Self.sessionNames(in: dropped)
+    }
+
+    private func validEntries() -> [ClosedTabEntry] {
+        let cutoff = now().addingTimeInterval(-expiration)
+        return entries.filter { $0.closedAt > cutoff }
+    }
+
+    private static func sessionNames(in entries: [ClosedTabEntry]) -> Set<String> {
+        var names: Set<String> = []
+        for entry in entries {
+            for snapshot in entry.tab.splitRoot.allPaneSnapshots() {
+                if let name = snapshot.sessionName { names.insert(name) }
+            }
+        }
+        return names
     }
 
     private func load() {

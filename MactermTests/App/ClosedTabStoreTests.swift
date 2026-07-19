@@ -36,7 +36,7 @@ struct ClosedTabStoreTests {
     @Test
     func newestEntriesComeFirstAndHistoryIsBounded() {
         let now = Date(timeIntervalSince1970: 1000)
-        let store = ClosedTabStore(fileURL: fileURL(), now: { now })
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 600, now: { now })
         let entries = (0 ..< 12).map { index in
             entry(closedAt: now.addingTimeInterval(TimeInterval(index)))
         }
@@ -48,11 +48,11 @@ struct ClosedTabStoreTests {
     }
 
     @Test
-    func entriesExpireAtTenMinutesAndPruneOnRead() {
+    func entriesExpireAtConfiguredTTLAndPruneOnRead() {
         let now = Date(timeIntervalSince1970: 1000)
-        let store = ClosedTabStore(fileURL: fileURL(), now: { now })
-        let expired = entry(closedAt: now.addingTimeInterval(-ClosedTabStore.expiration))
-        let valid = entry(closedAt: now.addingTimeInterval(-ClosedTabStore.expiration + 1))
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 600, now: { now })
+        let expired = entry(closedAt: now.addingTimeInterval(-601))
+        let valid = entry(closedAt: now.addingTimeInterval(-599))
         #expect(store.record(expired))
         #expect(store.record(valid))
 
@@ -61,9 +61,7 @@ struct ClosedTabStoreTests {
     }
 
     @Test
-    func consumingLatestRemovesExactlyOneEntry() {
-        let now = Date(timeIntervalSince1970: 1000)
-        let store = ClosedTabStore(fileURL: fileURL(), now: { now })
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 600, now: { now })
         let first = entry(closedAt: now)
         let second = entry(closedAt: now)
         #expect(store.record(first))
@@ -78,7 +76,7 @@ struct ClosedTabStoreTests {
     func snapshotRoundTripPreservesLayoutFocusAndPaneIdentity() throws {
         let now = Date(timeIntervalSince1970: 1000)
         let url = fileURL()
-        let store = ClosedTabStore(fileURL: url, now: { now })
+        let store = ClosedTabStore(fileURL: url, expiration: 600, now: { now })
         let firstID = UUID()
         let secondID = UUID()
         let first = PaneSnapshot(
@@ -104,7 +102,7 @@ struct ClosedTabStoreTests {
         let original = entry(closedAt: now, root: root)
         #expect(store.record(original))
 
-        let restored = try #require(ClosedTabStore(fileURL: url, now: { now }).all().first)
+        let restored = try #require(ClosedTabStore(fileURL: url, expiration: 600, now: { now }).all().first)
         #expect(restored.tab.focusedPaneID == firstID)
         guard case let .split(branch) = restored.tab.splitRoot else {
             Issue.record("Expected split snapshot")
@@ -128,11 +126,50 @@ struct ClosedTabStoreTests {
         let url = fileURL()
         let corrupt = Data("not-json".utf8)
         try corrupt.write(to: url)
-        let store = ClosedTabStore(fileURL: url, now: Date.init)
+        let store = ClosedTabStore(fileURL: url, expiration: 600, now: Date.init)
 
         #expect(store.loadFailed)
         #expect(store.all().isEmpty)
         #expect(!store.record(entry(closedAt: Date())))
         #expect(try Data(contentsOf: url) == corrupt)
     }
-}
+
+    @Test
+    func zeroTTLMeansEveryEntryExpiresImmediately() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 0, now: { now })
+        #expect(store.record(entry(closedAt: now)))
+        // Even at `closedAt = now`, anything strictly older than `now` is expired.
+        #expect(store.isEmpty)
+    }
+
+    @Test
+    func pruneExpiredReturnsSessionNamesOfDroppedEntries() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 10, now: { now })
+        let paneName = "macterm-foo-1"
+        let pane = PaneSnapshot(
+            id: UUID(),
+            projectPath: "/tmp/foo",
+            sessionID: UUID(),
+            sessionName: paneName
+        )
+        let expiredEntry = ClosedTabEntry(
+            projectID: UUID(),
+            closedAt: now.addingTimeInterval(-20),
+            tab: TabSnapshot(id: UUID(), customTitle: nil, focusedPaneID: pane.id, splitRoot: .pane(pane))
+        )
+        #expect(store.record(expiredEntry))
+
+        let dropped = store.pruneExpired()
+        #expect(dropped == [paneName])
+        #expect(store.isEmpty)
+    }
+
+    @Test
+    func pruneExpiredReturnsEmptySetWhenNothingDropped() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let store = ClosedTabStore(fileURL: fileURL(), expiration: 600, now: { now })
+        #expect(store.record(entry(closedAt: now)))
+        #expect(store.pruneExpired().isEmpty)
+    }

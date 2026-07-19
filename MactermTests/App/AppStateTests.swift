@@ -21,7 +21,7 @@ struct AppStateTests {
         return AppState(
             workspaceStore: store ?? WorkspaceStore(fileURL: tmp),
             projectFiles: projectFiles ?? makeProjectFileStore(),
-            closedTabStore: closedTabStore ?? ClosedTabStore(fileURL: historyURL)
+            closedTabStore: closedTabStore ?? ClosedTabStore(fileURL: historyURL, expiration: 600)
         )
     }
 
@@ -1119,7 +1119,11 @@ struct AppStateTests {
     }
 
     @Test
-    func closeTab_kills_every_panes_session() async throws {
+    func closeTab_preservesSessionsWithinGraceWindow() async throws {
+        // Tab close (whole-tab) preserves each pane's zmx session so Cmd+Shift+T
+        // can reattach within the grace window. The reap is lazy — it fires
+        // when `pollNow()` runs (or any ClosedTabStore touch after the TTL).
+        // Single-pane close still kills immediately.
         let killed = KilledSessions()
         let state = makeAppState()
         state.zmx = recordingZmx(into: killed)
@@ -1133,8 +1137,12 @@ struct AppStateTests {
         _ = state.workspaces[p.id]?.createTab(projectPath: "/tmp")
         state.closeTab(tab.id, projectID: p.id)
 
-        await killed.settle(expecting: names.count)
-        #expect(await killed.names == names)
+        // closeTab itself MUST NOT have killed anything — surfaces detached but
+        // sessions still live on the daemon. Wait a deterministic window so a
+        // late kill would have surfaced.
+        await killed.settleExpectingNone()
+        #expect(await killed.names.isEmpty)
+        #expect(state.hasClosedTabs)
     }
 
     @Test

@@ -61,6 +61,18 @@ indirect enum SplitNodeSnapshot: Codable {
     }
 }
 
+extension SplitNodeSnapshot {
+    /// Flat list of every `PaneSnapshot` in this subtree, depth-first.
+    /// Used by the closed-tab reap to know which zmx session names to
+    /// discard along with the entry.
+    func allPaneSnapshots() -> [PaneSnapshot] {
+        switch self {
+        case let .pane(p): [p]
+        case let .split(b): b.first.allPaneSnapshots() + b.second.allPaneSnapshots()
+        }
+    }
+}
+
 struct PaneSnapshot: Codable {
     let id: UUID
     let projectPath: String

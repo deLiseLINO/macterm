@@ -108,6 +108,24 @@ final class Preferences {
         }
     }
     private var _mainWindowHeight: Double = 800
+    /// How long a closed tab's zmx session stays alive so Cmd+Shift+T can
+    /// reattach to the running process. After this elapses, the session is
+    /// reaped. Clamped to a sane range so a runaway config can't leak dozens
+    /// of sessions per hour. Default 60 s.
+    var closedTabGracePeriod: Double {
+        get { _closedTabGracePeriod }
+        set {
+            _closedTabGracePeriod = Self.clamp(
+                newValue,
+                minimum: Self.minClosedTabGracePeriod,
+                maximum: Self.maxClosedTabGracePeriod
+            )
+            defaults.set(_closedTabGracePeriod, forKey: Keys.closedTabGracePeriod)
+        }
+    }
+    private var _closedTabGracePeriod: Double = 60
+    static let minClosedTabGracePeriod: Double = 5
+    static let maxClosedTabGracePeriod: Double = 600
 
 
     // MARK: - Sidebar icons
@@ -360,6 +378,11 @@ final class Preferences {
             minimum: Self.minMainWindowHeight,
             maximum: Self.maxMainWindowHeight
         )
+        _closedTabGracePeriod = Self.clamp(
+            defaults.object(forKey: Keys.closedTabGracePeriod) as? Double ?? 60,
+            minimum: Self.minClosedTabGracePeriod,
+            maximum: Self.maxClosedTabGracePeriod
+        )
         windowOpacity = (defaults.object(forKey: Keys.windowOpacity) as? Double) ?? 1.0
         windowBlurRadius = defaults.integer(forKey: Keys.windowBlurRadius)
         windowGlassEnabled = defaults.object(forKey: Keys.windowGlassEnabled) as? Bool ?? false
@@ -439,6 +462,7 @@ final class Preferences {
         static let showTabStatusIndicator = "macterm.sidebar.showTabStatusIndicator"
         static let showNewProjectButton = "macterm.sidebar.showNewProjectButton"
         static let terminateSessionsOnQuit = "macterm.session.terminateOnQuit"
+        static let closedTabGracePeriod = "macterm.tabs.closedGracePeriod"
         static let tabSwitcherVisibility = "macterm.toolbar.tabSwitcherVisibility"
         static let migrationV2GhosttyConfigOwned = "macterm.migration.v2_ghostty_config_owned"
     }
